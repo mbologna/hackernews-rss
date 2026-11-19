@@ -10,7 +10,7 @@
 #   min_points    only stories with at least this many points (default 0)
 #   min_comments  only stories with at least this many comments (default 0)
 #   window_hours  how long a story stays in the feed after it first matched
-#                 (default 48)
+#                 (default 48); a story that still matches always stays
 #   max_items     the most items the feed holds (default 150)
 
 [[feed]]

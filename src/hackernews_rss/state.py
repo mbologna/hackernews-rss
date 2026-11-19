@@ -113,10 +113,19 @@ def update(state: State, feeds: list[Feed], results: dict[str, list[Story]], now
                 if entry.story.url != story.url:  # the link was edited: its preview no longer applies
                     entry.preview, entry.attempts = None, 0
                 entry.story = story
-            seen.setdefault(story.id, min(now, max(story.created, cutoff)) if fresh else now)
-        kept = [sid for sid, t in seen.items() if t >= cutoff and sid in state.stories]
+            seen.setdefault(story.id, min(now, story.created) if fresh else now)
+        # A story the source still returns stays, however old: Algolia's
+        # front_page tag can list stories posted days ago, and dropping one
+        # while it is still listed would add it back on the next run. The
+        # window times out only the stories that no longer match.
+        current = {story.id for story in results[feed.file]}
+        kept = [sid for sid, t in seen.items() if sid in state.stories and (sid in current or t >= cutoff)]
+        # The cap keeps the listed stories first, for the same reason. A query
+        # asks for at most max_items hits, so they always fit.
+        kept.sort(key=lambda sid: (sid in current, seen[sid]), reverse=True)
+        kept = kept[: feed.max_items]
         kept.sort(key=lambda sid: (seen[sid], state.stories[sid].story.created), reverse=True)
-        state.feeds[feed.file] = {sid: seen[sid] for sid in kept[: feed.max_items]}
+        state.feeds[feed.file] = {sid: seen[sid] for sid in kept}
 
     configured = {f.file for f in feeds}
     state.feeds = {f: seen for f, seen in state.feeds.items() if f in configured}

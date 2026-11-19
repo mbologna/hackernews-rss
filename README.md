@@ -30,7 +30,7 @@ The counts are a snapshot from when the item was built. A page that blocks bots 
 - `title`: the feed's title.
 - `tags`: [Algolia tags](https://hn.algolia.com/api) such as `front_page`, `story`, `show_hn` or `ask_hn`. A feed with `front_page` follows the current front page. Any other feed takes the newest matching stories created within its window.
 - `min_points`, `min_comments`: only stories with at least that many (default 0).
-- `window_hours`: how long a story stays in the feed after it first appeared there (default 48).
+- `window_hours`: how long a story stays in the feed after it first appeared there (default 48). A story the API still returns for the feed stays however old it is: Algolia's `front_page` tag sometimes lists stories posted days ago.
 - `max_items`: the most items the feed holds (default 150).
 
 A push to `main` republishes the feeds. An unknown key or a duplicate `file` fails the build.

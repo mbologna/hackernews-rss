@@ -34,11 +34,22 @@ def test_a_new_feed_dates_its_first_batch_by_post_time():
     assert state.feeds["frontpage.xml"] == {"2": NOW - HOUR, "1": NOW - 2 * HOUR}
 
 
-def test_first_batch_dates_stay_inside_the_window_and_not_in_the_future():
+def test_first_batch_dates_are_never_in_the_future():
+    state = State()
+    update(state, [FRONT], {"frontpage.xml": [story(1, created=NOW + 60)]}, NOW)
+    assert state.feeds["frontpage.xml"] == {"1": NOW}
+
+
+def test_a_listed_story_older_than_the_window_stays_until_it_leaves():
+    # Algolia's front_page tag can list stories posted days ago.
     state = State()
     feed = Feed("f.xml", "F", "front_page", window_hours=1)
-    update(state, [feed], {"f.xml": [story(1, created=NOW - 5 * HOUR), story(2, created=NOW + 60)]}, NOW)
-    assert state.feeds["f.xml"] == {"2": NOW, "1": NOW - HOUR}
+    old = story(1, created=NOW - 50 * HOUR)
+    update(state, [feed], {"f.xml": [old]}, NOW)
+    update(state, [feed], {"f.xml": [old]}, NOW + HOUR)
+    assert state.feeds["f.xml"] == {"1": NOW - 50 * HOUR}  # kept, and its date doesn't move
+    update(state, [feed], {"f.xml": []}, NOW + 2 * HOUR)
+    assert state.feeds["f.xml"] == {}
 
 
 def test_later_stories_are_dated_when_the_feed_first_lists_them():
@@ -68,6 +79,16 @@ def test_stories_leave_after_the_window_and_unlisted_stories_are_dropped():
     update(state, [feed], {"f.xml": []}, NOW + 3 * HOUR)
     assert list(state.feeds["f.xml"]) == ["2"]
     assert list(state.stories) == ["2"]
+
+
+def test_max_items_keeps_listed_stories_before_newer_unlisted_ones():
+    state = State()
+    feed = Feed("f.xml", "F", "front_page", max_items=2)
+    update(state, [feed], {"f.xml": [story(1, created=NOW - 3 * HOUR)]}, NOW)
+    update(state, [feed], {"f.xml": [story(2)]}, NOW + HOUR)  # 1 left the list
+    update(state, [feed], {"f.xml": [story(1, created=NOW - 3 * HOUR), story(3)]}, NOW + 2 * HOUR)  # 1 is back
+    assert list(state.feeds["f.xml"]) == ["3", "1"]  # 2 is newer than 1 but no longer listed
+    assert state.feeds["f.xml"]["1"] == NOW - 3 * HOUR
 
 
 def test_max_items_keeps_the_newest():

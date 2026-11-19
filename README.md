@@ -5,14 +5,16 @@
 
 Hacker News RSS feeds whose items carry the linked page's image and excerpt, next to the article and comments links. [hnrss](https://github.com/hnrss/hnrss) gives you only the links. This repo builds the feeds with a scheduled GitHub Actions workflow and publishes them as static files on GitHub Pages.
 
-**Subscribe:** <https://mbologna.github.io/hackernews-rss/>
+**Subscribe:** <https://feeds.michelebologna.net/hackernews-rss/>
+
+The feeds are published on GitHub Pages and served at `feeds.michelebologna.net`, a proxy in front of every feed I publish, so the URLs above keep working wherever the files are hosted. The `mbologna.github.io/hackernews-rss/` URLs work too.
 
 | Feed | URL |
 | --- | --- |
-| The current front page | `https://mbologna.github.io/hackernews-rss/frontpage.xml` |
-| Stories with 100+ points | `https://mbologna.github.io/hackernews-rss/best.xml` |
-| Ranked stories with 150+ points, as the [@hacker_news_feed](https://t.me/hacker_news_feed) Telegram bot posts them | `https://mbologna.github.io/hackernews-rss/top.xml` |
-| A daily digest: the 20 stories with the most points of each UTC day, one item per day at 06:00 UTC | `https://mbologna.github.io/hackernews-rss/digest.xml` |
+| The current front page | `https://feeds.michelebologna.net/hackernews-rss/frontpage.xml` |
+| Stories with 100+ points | `https://feeds.michelebologna.net/hackernews-rss/best.xml` |
+| Ranked stories with 150+ points, as the [@hacker_news_feed](https://t.me/hacker_news_feed) Telegram bot posts them | `https://feeds.michelebologna.net/hackernews-rss/top.xml` |
+| A daily digest: the 20 stories with the most points of each UTC day, one item per day at 06:00 UTC | `https://feeds.michelebologna.net/hackernews-rss/digest.xml` |
 
 Each item has:
 

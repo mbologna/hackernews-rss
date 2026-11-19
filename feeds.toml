@@ -1,7 +1,7 @@
 # The published feeds, one [[feed]] table each. A push to main republishes
 # them; removing a feed stops publishing its file.
 #
-#   file          the file name under https://mbologna.github.io/hackernews-rss/
+#   file          the file name under https://feeds.michelebologna.net/hackernews-rss/
 #   title         the feed's title in the reader
 #   tags          Algolia tags: front_page, story, show_hn, ask_hn, ...
 #                 (comma-separated tags must all match). With front_page the

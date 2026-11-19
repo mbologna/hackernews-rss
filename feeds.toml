@@ -34,3 +34,15 @@ title = "Hacker News: top stories, 150+ points"
 tags = "story"
 min_points = 150
 ranked = true
+
+# One item per UTC day with that day's top stories by points.
+#
+#   file          the file name, as for [[feed]]
+#   title         the feed's title
+#   top           stories per day (default 20)
+#   days          days kept (default 7)
+#   publish_hour  the UTC hour of the next day when a day appears (default 6:
+#                 07:00 in Rome in winter, by when late stories have scored)
+[[digest]]
+file = "digest.xml"
+title = "Hacker News: daily digest"

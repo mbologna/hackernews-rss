@@ -7,6 +7,7 @@ and no cache. Losing it only costs fetching the previews again.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import sys
 import urllib.error
@@ -17,7 +18,7 @@ from pathlib import Path
 
 from . import USER_AGENT
 from .comments import Comment
-from .config import Feed
+from .config import Digest, Feed
 from .preview import Preview
 from .source import Story
 
@@ -45,6 +46,8 @@ class State:
     stories: dict[str, Entry] = field(default_factory=dict)
     # Feed file -> story id -> Unix time the feed first listed the story.
     feeds: dict[str, dict[str, int]] = field(default_factory=dict)
+    # Digest file -> UTC day (YYYY-MM-DD) -> its top story ids, frozen once published.
+    digests: dict[str, dict[str, list[str]]] = field(default_factory=dict)
 
     def to_json(self) -> bytes:
         data = {
@@ -60,6 +63,7 @@ class State:
                 for sid, e in self.stories.items()
             },
             "feeds": self.feeds,
+            "digests": self.digests,
         }
         return json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
@@ -82,9 +86,14 @@ class State:
                 for sid, e in data["stories"].items()
             }
             feeds = {f: {sid: int(t) for sid, t in seen.items()} for f, seen in data["feeds"].items()}
+            # Added with the digests: absent from older state files.
+            digests = {
+                f: {day: [str(sid) for sid in ids] for day, ids in days.items()}
+                for f, days in data.get("digests", {}).items()
+            }
         except (AttributeError, KeyError, TypeError) as e:
             raise ValueError(f"malformed state: {e!r}") from e
-        return cls(stories, feeds)
+        return cls(stories, feeds, digests)
 
 
 def load(source: str) -> State:
@@ -104,8 +113,47 @@ def load(source: str) -> State:
         return State()
 
 
-def update(state: State, feeds: list[Feed], results: dict[str, list[Story]], now: int) -> None:
-    """Merge this run's stories into the state, then drop what no feed keeps."""
+def merge_story(state: State, story: Story) -> None:
+    """Add a story, or refresh the one the state has."""
+    entry = state.stories.get(story.id)
+    if entry is None:
+        state.stories[story.id] = Entry(story)
+        return
+    if entry.story.url != story.url:  # the link was edited: its preview no longer applies
+        entry.preview, entry.attempts = None, 0
+    entry.story = story
+
+
+def utc_day(timestamp: int) -> dt.date:
+    return dt.datetime.fromtimestamp(timestamp, dt.UTC).date()
+
+
+def publish_time(digest: Digest, day: dt.date) -> int:
+    """When a digest publishes a day: publish_hour (UTC) on the next day."""
+    moment = dt.datetime.combine(day + dt.timedelta(days=1), dt.time(digest.publish_hour), dt.UTC)
+    return int(moment.timestamp())
+
+
+def digest_days_due(state: State, digest: Digest, now: int) -> list[dt.date]:
+    """The days within the digest's window that are due but not yet published, oldest first."""
+    published = state.digests.get(digest.file, {})
+    today = utc_day(now)
+    days = [today - dt.timedelta(days=n) for n in range(digest.days, 0, -1)]
+    return [d for d in days if d.isoformat() not in published and publish_time(digest, d) <= now]
+
+
+def add_digest_day(state: State, digest: Digest, day: dt.date, stories: list[Story]) -> None:
+    """Freeze the day's top stories by points, and add them to the state."""
+    top = sorted(stories, key=lambda s: s.points, reverse=True)[: digest.top]
+    for story in top:
+        merge_story(state, story)
+    state.digests.setdefault(digest.file, {})[day.isoformat()] = [s.id for s in top]
+
+
+def update(
+    state: State, feeds: list[Feed], results: dict[str, list[Story]], now: int, digests: list[Digest] = ()
+) -> None:
+    """Merge this run's stories into the state, then drop what no feed or digest keeps."""
     for feed in feeds:
         cutoff = now - feed.window_hours * 3600
         # A feed with no history (new, or the state was lost) dates its first
@@ -115,13 +163,7 @@ def update(state: State, feeds: list[Feed], results: dict[str, list[Story]], now
         fresh = feed.file not in state.feeds
         seen = state.feeds.setdefault(feed.file, {})
         for story in results[feed.file]:
-            entry = state.stories.get(story.id)
-            if entry is None:
-                state.stories[story.id] = Entry(story)
-            else:
-                if entry.story.url != story.url:  # the link was edited: its preview no longer applies
-                    entry.preview, entry.attempts = None, 0
-                entry.story = story
+            merge_story(state, story)
             seen.setdefault(story.id, min(now, story.created) if fresh else now)
         # A story the source still returns stays, however old: Algolia's
         # front_page tag can list stories posted days ago, and dropping one
@@ -138,7 +180,15 @@ def update(state: State, feeds: list[Feed], results: dict[str, list[Story]], now
 
     configured = {f.file for f in feeds}
     state.feeds = {f: seen for f, seen in state.feeds.items() if f in configured}
+    today = utc_day(now)
+    kept_days = {}
+    for digest in digests:
+        oldest = (today - dt.timedelta(days=digest.days)).isoformat()
+        days = state.digests.get(digest.file, {})
+        kept_days[digest.file] = {day: ids for day, ids in days.items() if day >= oldest}
+    state.digests = kept_days
     listed = {sid for seen in state.feeds.values() for sid in seen}
+    listed |= {sid for days in state.digests.values() for ids in days.values() for sid in ids}
     state.stories = {sid: e for sid, e in state.stories.items() if sid in listed}
 
 

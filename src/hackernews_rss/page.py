@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from html import escape
 
-from .config import Feed
+from .config import Digest, Feed
 
 
-def describe(feed: Feed) -> str:
+def describe(feed: Feed | Digest) -> str:
+    if isinstance(feed, Digest):
+        return (
+            f"the {feed.top} stories with the most points of each UTC day, "
+            f"published at {feed.publish_hour:02d}:00 UTC the next day, last {feed.days} days"
+        )
     if feed.ranked:
         parts = [f"stories tagged {feed.tags} in HN's current ranking"]
     elif feed.follows_front_page:
@@ -22,7 +27,7 @@ def describe(feed: Feed) -> str:
     return ", ".join(parts)
 
 
-def render_page(feeds: list[tuple[Feed, str]]) -> str:
+def render_page(feeds: list[tuple[Feed | Digest, str]]) -> str:
     """feeds pairs each feed with its published URL."""
     rows = "\n".join(
         f'    <li><a href="{escape(url)}">{escape(feed.title)}</a><br>'

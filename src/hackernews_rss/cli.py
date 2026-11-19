@@ -11,7 +11,7 @@ import urllib.request
 from pathlib import Path
 
 from . import PAGE_URL, STATE_NAME, USER_AGENT, comments, config, preview, source, state
-from .feed import last_build_date, render_feed
+from .feed import last_build_date, render_digest, render_feed
 from .page import render_page
 
 
@@ -21,7 +21,8 @@ def feed_url(page_url: str, file: str) -> str:
 
 def build(config_path: Path, output_dir: Path, page_url: str, previous: str, now: dt.datetime) -> None:
     """Write every configured feed, state.json and index.html into output_dir."""
-    feeds = config.load(config_path)
+    conf = config.load(config_path)
+    feeds = conf.feeds
     current = state.load(previous)
 
     # Feeds with the same query share one request.
@@ -46,7 +47,12 @@ def build(config_path: Path, output_dir: Path, page_url: str, previous: str, now
             results[feed.file] = stories(source.query_url(feed, now))
 
     stamp = int(now.timestamp())
-    state.update(current, feeds, results, stamp)
+    for digest in conf.digests:
+        for day in state.digest_days_due(current, digest, stamp):
+            start = int(dt.datetime.combine(day, dt.time(), dt.UTC).timestamp())
+            state.add_digest_day(current, digest, day, stories(source.day_query_url(start, start + 86400)))
+            print(f"{digest.file}: published {day.isoformat()}")
+    state.update(current, feeds, results, stamp, conf.digests)
     fetched, failed = state.fetch_previews(current, preview.fetch_preview)
     print(f"previews: fetched {fetched} new, {len(failed)} failed")
     for url, error in failed:
@@ -66,19 +72,28 @@ def build(config_path: Path, output_dir: Path, page_url: str, previous: str, now
         images = sum(1 for e, _ in items if e.preview and e.preview.image)
         excerpts = sum(1 for e, _ in items if (e.preview and e.preview.description) or e.story.text)
         print(f"{feed.file}: {len(items)} items, {images} with an image, {excerpts} with an excerpt")
+    for digest in conf.digests:
+        days = sorted(current.digests.get(digest.file, {}).items(), reverse=True)
+        entries = [
+            (dt.date.fromisoformat(day), [current.stories[sid] for sid in ids if sid in current.stories])
+            for day, ids in days
+        ]
+        document = render_digest(digest, entries, feed_url(page_url, digest.file), page_url, now)
+        (output_dir / digest.file).write_bytes(document)
+        print(f"{digest.file}: {len(entries)} days")
     (output_dir / STATE_NAME).write_bytes(current.to_json())
     # The icons: the feeds' <image> and the index page's favicon.
     for asset in importlib.resources.files("hackernews_rss").joinpath("site").iterdir():
         (output_dir / asset.name).write_bytes(asset.read_bytes())
-    page = render_page([(f, feed_url(page_url, f.file)) for f in feeds])
+    page = render_page([(f, feed_url(page_url, f.file)) for f in [*feeds, *conf.digests]])
     (output_dir / "index.html").write_text(page, encoding="utf-8")
 
 
 def check(config_path: Path, page_url: str, max_age: dt.timedelta, now: dt.datetime) -> bool:
     """Whether every configured feed is published and was built within max_age."""
     ok = True
-    for feed in config.load(config_path):
-        url = feed_url(page_url, feed.file)
+    for file in config.load(config_path).files:
+        url = feed_url(page_url, file)
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
         try:
             with urllib.request.urlopen(req, timeout=30) as r:

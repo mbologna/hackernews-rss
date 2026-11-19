@@ -163,3 +163,25 @@ def test_ranked_feed_keeps_ranked_stories_in_rank_order(tmp_path, web):
     assert guids(tmp_path / "out" / "top.xml") == ["30", "10"]
     (query,) = [r for r in web.requests if r.startswith(API)]
     assert "story_30" in query and "story_40" in query and "points%3E%3D150" in query
+
+
+def test_digest_publishes_due_days_once(tmp_path, web, capsys):
+    config = tmp_path / "feeds.toml"
+    config.write_text('[[digest]]\nfile = "digest.xml"\ntitle = "Daily"\ntop = 1\ndays = 2\n')
+    web.json(API + "search?", {"hits": [hit(5, points=10), hit(6, points=90)]})
+    web.html("https://example.com/6", OG.format(n=6))
+    out = tmp_path / "out"
+    assert build(config, out, "--previous-state", "") == 0
+    items = ET.parse(out / "digest.xml").getroot().findall("channel/item")
+    assert 1 <= len(items) <= 2  # yesterday only once past 06:00 UTC
+    assert all("Desc 6" in i.findtext("description") for i in items)
+    day_queries = [r for r in web.requests if r.startswith(API)]
+    assert len(day_queries) == len(items)
+    assert "digest.xml: published" in capsys.readouterr().out
+
+    web.requests.clear()
+    web.routes[PAGE + "state.json"] = lambda: FakeResponse((out / "state.json").read_bytes(), "application/json")
+    assert build(config, tmp_path / "again") == 0
+    assert not [r for r in web.requests if r.startswith(API)]  # frozen: never asked again
+    assert "previews: fetched 0 new" in capsys.readouterr().out
+    assert "digest.xml" in (tmp_path / "again" / "index.html").read_text()

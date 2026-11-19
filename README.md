@@ -12,6 +12,7 @@ Hacker News RSS feeds whose items carry the linked page's image and excerpt, nex
 | The current front page | `https://mbologna.github.io/hackernews-rss/frontpage.xml` |
 | Stories with 100+ points | `https://mbologna.github.io/hackernews-rss/best.xml` |
 | Ranked stories with 150+ points, as the [@hacker_news_feed](https://t.me/hacker_news_feed) Telegram bot posts them | `https://mbologna.github.io/hackernews-rss/top.xml` |
+| A daily digest: the 20 stories with the most points of each UTC day, one item per day at 06:00 UTC | `https://mbologna.github.io/hackernews-rss/digest.xml` |
 
 Each item has:
 
@@ -39,6 +40,13 @@ The counts are a snapshot from when the item was built. A page that blocks bots 
 - `window_hours`: how long a story stays in the feed after it first appeared there (default 48). A story the API still returns for the feed stays however old it is: Algolia's `front_page` tag sometimes lists stories posted days ago.
 - `max_items`: the most items the feed holds (default 150).
 - `ranked`: `true` keeps only stories in HN's current ranking, the ~500 ids of [`topstories.json`](https://github.com/HackerNews/API#new-top-and-best-stories), at any age (default `false`). This is the list [hackernewsbot](https://github.com/phil-r/hackernewsbot) reads; with `min_points = 150`, `top.xml` holds the stories it posts. The bot posts at most one story per 10 minutes; a feed doesn't need that limit.
+
+Each `[[digest]]` table publishes one item per UTC day, listing that day's top stories by points, each with its image, excerpt and counts:
+
+- `file`, `title`: as for a feed.
+- `top`: stories per day (default 20).
+- `days`: days kept (default 7).
+- `publish_hour`: the UTC hour of the next day when a day appears (default 6), by when late stories have had time to score. A day's list is frozen once published.
 
 A push to `main` republishes the feeds. An unknown key or a duplicate `file` fails the build.
 

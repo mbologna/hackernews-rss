@@ -1,10 +1,11 @@
+import datetime as dt
 import urllib.error
 
 import pytest
 from conftest import FakeResponse
 
 from hackernews_rss.comments import Comment
-from hackernews_rss.config import Feed
+from hackernews_rss.config import Digest, Feed
 from hackernews_rss.preview import Preview
 from hackernews_rss.source import Story
 from hackernews_rss.state import (
@@ -12,9 +13,12 @@ from hackernews_rss.state import (
     MAX_ATTEMPTS,
     Entry,
     State,
+    add_digest_day,
+    digest_days_due,
     fetch_comments,
     fetch_previews,
     load,
+    publish_time,
     update,
 )
 
@@ -244,3 +248,38 @@ def test_fetch_comments_looks_up_listed_stories_with_comments_at_most_every_inte
     assert state.stories["new"].comment_checked == NOW
     assert state.stories["due"].comment is None  # its comments were deleted
     assert state.stories["flaky"].comment_checked == 0  # retried next run
+
+
+DIGEST = Digest("digest.xml", "Digest", top=2, days=3, publish_hour=6)
+
+
+def at(day: str, hour: int = 0) -> int:
+    return int(dt.datetime.combine(dt.date.fromisoformat(day), dt.time(hour), dt.UTC).timestamp())
+
+
+def test_digest_days_become_due_at_the_publish_hour():
+    state = State()
+    assert digest_days_due(state, DIGEST, at("2026-11-19", 5)) == [dt.date(2026, 11, 16), dt.date(2026, 11, 17)]
+    assert digest_days_due(state, DIGEST, at("2026-11-19", 6))[-1] == dt.date(2026, 11, 18)
+    assert publish_time(DIGEST, dt.date(2026, 11, 18)) == at("2026-11-19", 6)
+
+
+def test_published_days_are_frozen_and_old_ones_pruned():
+    state = State()
+    now = at("2026-11-19", 7)
+    add_digest_day(state, DIGEST, dt.date(2026, 11, 18), [story(1, points=5), story(2, points=50), story(3, points=20)])
+    assert state.digests["digest.xml"] == {"2026-11-18": ["2", "3"]}
+    assert dt.date(2026, 11, 18) not in digest_days_due(state, DIGEST, now)
+    state.digests["digest.xml"]["2026-11-10"] = ["9"]
+    update(state, [], {}, now, [DIGEST])
+    assert state.digests == {"digest.xml": {"2026-11-18": ["2", "3"]}}
+    assert set(state.stories) == {"2", "3"}  # digest stories stay without any feed
+    update(state, [], {}, now, [])  # the digest was removed from the config
+    assert state.digests == {} and state.stories == {}
+
+
+def test_digests_survive_a_round_trip_and_older_files_load():
+    state = State(stories={"1": Entry(story(1))}, digests={"digest.xml": {"2026-11-18": ["1"]}})
+    assert State.from_json(state.to_json()) == state
+    old = b'{"version":1,"stories":{},"feeds":{}}'
+    assert State.from_json(old).digests == {}

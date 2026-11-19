@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 import pytest
 
 from hackernews_rss.comments import Comment
-from hackernews_rss.config import Feed
+from hackernews_rss.config import Digest, Feed
 from hackernews_rss.feed import (
     ATOM,
     DC,
@@ -14,6 +14,7 @@ from hackernews_rss.feed import (
     domain,
     item_html,
     last_build_date,
+    render_digest,
     render_feed,
 )
 from hackernews_rss.page import describe, render_page
@@ -196,3 +197,38 @@ def test_page_links_the_icons():
     page = render_page([(FEED, "https://site.example/frontpage.xml")])
     assert '<link rel="icon" href="favicon.svg" type="image/svg+xml">' in page
     assert '<link rel="apple-touch-icon" href="icon.png">' in page
+
+
+def test_digest_document():
+    digest = Digest("digest.xml", "Daily", top=2, publish_hour=6)
+    day = dt.date(2026, 11, 18)
+    first = Entry(story(id="1", title="One & only"), Preview("https://i.example/1.png", "Desc", "Site"))
+    second = Entry(story(id="2", url=None, text="Ask text", author="", points=1, comments=1), None)
+    doc = render_digest(
+        digest, [(day, [first, second])], "https://site.example/digest.xml", "https://site.example/", NOW
+    )
+    item = ET.fromstring(doc).find("channel/item")
+    assert item.findtext("title") == "Hacker News digest: Wed 18 Nov 2026"
+    assert item.findtext("link") == "https://news.ycombinator.com/front?day=2026-11-18"
+    assert item.findtext("guid") == "digest.xml:2026-11-18"
+    assert item.findtext("pubDate") == "Thu, 19 Nov 2026 06:00:00 +0000"
+    assert item.find(f"{{{MEDIA}}}thumbnail").get("url") == "https://i.example/1.png"
+    html = item.findtext("description")
+    assert '<h3>1. <a href="https://www.example.com/post?a=1&amp;b=2">One &amp; only</a></h3>' in html
+    assert "<p><b>Site</b> · Desc</p>" in html
+    assert '<h3>2. <a href="https://news.ycombinator.com/item?id=2">' in html
+    assert "<p>Ask text</p>" in html
+    assert "1 point · " in html and "1 comment</a></p>" in html
+
+
+def test_digest_entry_without_text_or_image():
+    doc = render_digest(Digest("d.xml", "D"), [(dt.date(2026, 11, 18), [Entry(story(), Preview())])], "u", "p", NOW)
+    item = ET.fromstring(doc).find("channel/item")
+    assert item.find(f"{{{MEDIA}}}thumbnail") is None
+    assert "<p><b>example.com</b></p>" in item.findtext("description")
+
+
+def test_page_describes_a_digest():
+    assert describe(Digest("d.xml", "D")) == (
+        "the 20 stories with the most points of each UTC day, published at 06:00 UTC the next day, last 7 days"
+    )

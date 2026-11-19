@@ -60,6 +60,12 @@ def ids_query_urls(ids: list[int], tags: str, filters: list[str]) -> list[str]:
     return urls
 
 
+def day_query_url(start: int, end: int) -> str:
+    """The stories created in [start, end), most points first: Algolia's search ranks an empty query by points."""
+    params = {"tags": "story", "numericFilters": f"created_at_i>={start},created_at_i<{end}", "hitsPerPage": "200"}
+    return API + "search?" + urllib.parse.urlencode(params)
+
+
 def fetch_json(url: str):
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=30) as r:

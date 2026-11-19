@@ -60,7 +60,10 @@ The [CI workflow](.github/workflows/ci.yml) runs the tests on every push and pul
 
 - on every push;
 - every 30 minutes (at :07 and :37), dispatched by a Cron Trigger on the Worker that serves the feeds: GitHub's own schedule ran hours late, or not at all. Those runs skip the tests;
+- every Monday at 06:00 UTC, on GitHub's own schedule;
 - on a manual run.
+
+The Monday run also cuts a [release](https://github.com/mbologna/hackernews-rss/releases) with [auto-release](https://github.com/mbologna/auto-release) when a feature, a fix or a dependency update has landed since the last one: a `vX.Y.Z` tag and a GitHub Release whose notes list the changes. The releases are a changelog only; Pages always serves `main`. The 30-minute dispatches never release.
 
 A build:
 

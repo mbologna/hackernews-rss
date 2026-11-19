@@ -12,6 +12,9 @@ name: CI
 #
 # The previous run's state.json comes from the published site itself, so the
 # workflow needs no commits and no cache.
+#
+# GitHub's Monday schedule runs the tests and the build too, and cuts the
+# weekly release (auto-release); a late or skipped run only delays it.
 
 "on":
   push:
@@ -23,6 +26,8 @@ name: CI
         description: Skip the tests and only build and publish the feeds
         type: boolean
         default: false
+  schedule:
+    - cron: "0 6 * * 1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,6 +44,22 @@ jobs:
     with:
       python_version: "3.15"
       enable_codecov: false
+    secrets: inherit
+
+  # Monday's run tags the next version and publishes a GitHub Release with
+  # the changes as its notes; nothing builds on tags, Pages deploys from main.
+  auto-release:
+    needs: [python]
+    # The reusable workflow releases on every manual run: keep the 30-minute
+    # build_only dispatches from cutting one each time.
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
+    # contents: push the tag and create the Release.
+    permissions:
+      contents: write
+    uses: mbologna/.github/.github/workflows/auto-release.yml@b38077d3c4d6177bdd5e42255b98c0be66758300 # main
+    with:
+      strategy: conventional
+      dispatch_tag_build: false
     secrets: inherit
 
   build:

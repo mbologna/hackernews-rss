@@ -59,7 +59,7 @@ An item's `pubDate` is when that feed first listed the story, not when it was po
 The [CI workflow](.github/workflows/ci.yml) runs the tests on every push and pull request. On `main` it then builds the feeds and deploys them to GitHub Pages:
 
 - on every push;
-- every 30 minutes (at :07 and :37; GitHub often starts scheduled runs late);
+- every 30 minutes (at :07 and :37), dispatched by a Cron Trigger on the feeds.michelebologna.net Worker: GitHub's own schedule ran hours late, or not at all. Those runs skip the tests;
 - on a manual run.
 
 A build:
@@ -75,7 +75,7 @@ A build:
 
 The generated files are never committed. Losing `state.json` only means fetching the previews again.
 
-After deploying, the workflow fetches every published feed and fails if one is missing or its `lastBuildDate` is more than 3 hours old. GitHub disables a public repo's scheduled workflows after 60 days without activity. Renovate's commits keep this one active. A disabled schedule runs nothing, so nothing fails either: if that ever happens, re-enable the workflow from the Actions tab.
+After deploying, the workflow fetches every published feed and fails if one is missing or its `lastBuildDate` is more than 3 hours old. If the dispatches stop, the freshness check can't notice (it runs in the same workflow); the outside check of `health.json` through the Worker does, and alerts.
 
 ## Development
 

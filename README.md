@@ -11,6 +11,7 @@ Hacker News RSS feeds whose items carry the linked page's image and excerpt, nex
 | --- | --- |
 | The current front page | `https://mbologna.github.io/hackernews-rss/frontpage.xml` |
 | Stories with 100+ points | `https://mbologna.github.io/hackernews-rss/best.xml` |
+| Ranked stories with 150+ points, as the [@hacker_news_feed](https://t.me/hacker_news_feed) Telegram bot posts them | `https://mbologna.github.io/hackernews-rss/top.xml` |
 
 Each item has:
 
@@ -32,6 +33,7 @@ The counts are a snapshot from when the item was built. A page that blocks bots 
 - `min_points`, `min_comments`: only stories with at least that many (default 0).
 - `window_hours`: how long a story stays in the feed after it first appeared there (default 48). A story the API still returns for the feed stays however old it is: Algolia's `front_page` tag sometimes lists stories posted days ago.
 - `max_items`: the most items the feed holds (default 150).
+- `ranked`: `true` keeps only stories in HN's current ranking, the ~500 ids of [`topstories.json`](https://github.com/HackerNews/API#new-top-and-best-stories), at any age (default `false`). This is the list [hackernewsbot](https://github.com/phil-r/hackernewsbot) reads; with `min_points = 150`, `top.xml` holds the stories it posts. The bot posts at most one story per 10 minutes; a feed doesn't need that limit.
 
 A push to `main` republishes the feeds. An unknown key or a duplicate `file` fails the build.
 
@@ -48,7 +50,7 @@ The [CI workflow](.github/workflows/ci.yml) runs the tests on every push and pul
 A build:
 
 1. Reads the previous run's `state.json` from the published site. It holds every listed story with its preview, and when each feed first listed it.
-2. Asks the [Algolia HN API](https://hn.algolia.com/api), the one hnrss uses, for each feed's stories. Feeds that share a query share one request.
+2. Asks the [Algolia HN API](https://hn.algolia.com/api), the one hnrss uses, for each feed's stories. Feeds that share a query share one request. A ranked feed first reads `topstories.json` from the [HN API](https://github.com/HackerNews/API), then asks Algolia for those ids, 100 per request.
 3. Fetches the previews still missing, eight pages at a time: the first 512 KB of each, with a 10-second timeout. It retries a failed page on the next two runs, except for permanent errors such as `403` and `404`.
 4. Writes each feed, `state.json` and `index.html`, and deploys them.
 

@@ -8,7 +8,12 @@ from .config import Feed
 
 
 def describe(feed: Feed) -> str:
-    parts = ["the current front page" if feed.follows_front_page else f"newest stories tagged {feed.tags}"]
+    if feed.ranked:
+        parts = [f"stories tagged {feed.tags} in HN's current ranking"]
+    elif feed.follows_front_page:
+        parts = ["the current front page"]
+    else:
+        parts = [f"newest stories tagged {feed.tags}"]
     if feed.min_points:
         parts.append(f"at least {feed.min_points} points")
     if feed.min_comments:

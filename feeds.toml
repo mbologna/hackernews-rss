@@ -12,6 +12,8 @@
 #   window_hours  how long a story stays in the feed after it first matched
 #                 (default 48); a story that still matches always stays
 #   max_items     the most items the feed holds (default 150)
+#   ranked        true: only stories in HN's current ranking (the ~500 ids of
+#                 topstories.json), at any age (default false)
 
 [[feed]]
 file = "frontpage.xml"
@@ -23,3 +25,12 @@ file = "best.xml"
 title = "Hacker News: 100+ points"
 tags = "story"
 min_points = 100
+
+# What the @hacker_news_feed Telegram bot (phil-r/hackernewsbot) posts: ranked
+# stories with 150+ points, including older ones still ranked.
+[[feed]]
+file = "top.xml"
+title = "Hacker News: top stories, 150+ points"
+tags = "story"
+min_points = 150
+ranked = true

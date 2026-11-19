@@ -25,12 +25,24 @@ def build(config_path: Path, output_dir: Path, page_url: str, previous: str, now
 
     # Feeds with the same query share one request.
     responses: dict[str, list[source.Story]] = {}
-    results = {}
-    for feed in feeds:
-        url = source.query_url(feed, now)
+
+    def stories(url: str) -> list[source.Story]:
         if url not in responses:
             responses[url] = source.fetch_stories(url)
-        results[feed.file] = responses[url]
+        return responses[url]
+
+    ranked = source.fetch_ranked_ids() if any(f.ranked for f in feeds) else []
+    results = {}
+    for feed in feeds:
+        if feed.ranked:
+            # In rank order, at most max_items: state.update relies on a
+            # feed's results fitting in it.
+            urls = source.ids_query_urls(ranked, feed.tags, source.count_filters(feed))
+            rank = {str(sid): n for n, sid in enumerate(ranked)}
+            matched = sorted((s for url in urls for s in stories(url)), key=lambda s: rank.get(s.id, len(rank)))
+            results[feed.file] = matched[: feed.max_items]
+        else:
+            results[feed.file] = stories(source.query_url(feed, now))
 
     stamp = int(now.timestamp())
     state.update(current, feeds, results, stamp)

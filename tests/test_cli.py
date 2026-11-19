@@ -6,7 +6,7 @@ from email.utils import format_datetime
 from conftest import FakeResponse, hit
 
 from hackernews_rss import cli
-from hackernews_rss.source import API
+from hackernews_rss.source import API, FIREBASE
 
 PAGE = "https://site.example/"
 CONFIG = """
@@ -111,3 +111,40 @@ def test_check_fails_on_a_stale_or_missing_feed(tmp_path, web, capsys):
     err = capsys.readouterr().err
     assert "5.0 hours ago (limit 4.5)" in err
     assert "best.xml: HTTP Error 404" in err
+
+
+RANKED_CONFIG = """
+[[feed]]
+file = "top.xml"
+title = "Top"
+tags = "story"
+min_points = 150
+ranked = true
+max_items = 2
+"""
+
+
+def test_ranked_feed_keeps_ranked_stories_in_rank_order(tmp_path, web):
+    config = tmp_path / "feeds.toml"
+    config.write_text(RANKED_CONFIG)
+    now = int(dt.datetime.now(dt.UTC).timestamp())
+    web.json(FIREBASE + "topstories.json", [30, 10, 20, 40])
+    # Algolia answers the id query with the ranked stories that have 150+
+    # points, in its own order. 40 is ranked last and falls off max_items.
+    web.json(
+        API + "search?",
+        {
+            "hits": [
+                hit(10, points=200, created=now - 3 * 86400),
+                hit(30, points=160, created=now - 600),
+                hit(40, points=999, created=now - 60),
+            ]
+        },
+    )
+    for n in (10, 30, 40):
+        web.html(f"https://example.com/{n}", "<head></head>")
+    assert build(config, tmp_path / "out", "--previous-state", "") == 0
+    # 10 is three days old but still ranked: it stays, as with the bot.
+    assert guids(tmp_path / "out" / "top.xml") == ["30", "10"]
+    (query,) = [r for r in web.requests if r.startswith(API)]
+    assert "story_30" in query and "story_40" in query and "points%3E%3D150" in query

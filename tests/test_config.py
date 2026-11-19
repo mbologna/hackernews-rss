@@ -9,15 +9,17 @@ REPO_CONFIG = Path(__file__).parent.parent / "feeds.toml"
 
 def test_the_repo_config_is_valid():
     feeds = load(REPO_CONFIG)
-    assert [f.file for f in feeds] == ["frontpage.xml", "best.xml"]
+    assert [f.file for f in feeds] == ["frontpage.xml", "best.xml", "top.xml"]
     assert feeds[0].follows_front_page
     assert not feeds[1].follows_front_page
     assert feeds[1].min_points == 100
+    assert feeds[2].ranked and feeds[2].min_points == 150
 
 
 def test_defaults_apply():
     (feed,) = parse('[[feed]]\nfile = "a.xml"\ntitle = "A"\ntags = "story"\n')
     assert feed == Feed("a.xml", "A", "story", min_points=0, min_comments=0, window_hours=48, max_items=150)
+    assert not feed.ranked
 
 
 def test_front_page_among_several_tags():
@@ -42,6 +44,7 @@ def test_front_page_among_several_tags():
         ),
         ('[[feed]]\nfile = "a.xml"\ntitle = "A"\ntags = "story"\nmax_items = true', "max_items must be a whole number"),
         ('[[feed]]\nfile = "a.xml"\ntitle = "A"\ntags = "story"\nwindow_hours = 0', "must be at least 1"),
+        ('[[feed]]\nfile = "a.xml"\ntitle = "A"\ntags = "story"\nranked = 1', "ranked must be true or false"),
         ('[[feed]]\nfile = "../a.xml"\ntitle = "A"\ntags = "story"', "file must be a lowercase name ending in .xml"),
         ('[[feed]]\nfile = "index.html"\ntitle = "A"\ntags = "story"', "file must be a lowercase name ending in .xml"),
         (

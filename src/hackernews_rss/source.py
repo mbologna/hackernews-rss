@@ -13,8 +13,10 @@ from .config import Feed
 from .text import excerpt, plain_text
 
 API = "https://hn.algolia.com/api/v1/"
+FIREBASE = "https://hacker-news.firebaseio.com/v0/"
 HN_ITEM = "https://news.ycombinator.com/item?id="
 MAX_HITS = 1000  # Algolia's hitsPerPage ceiling
+ID_CHUNK = 100  # story ids per Algolia request, keeping URLs short
 
 
 @dataclass(frozen=True)
@@ -33,17 +35,51 @@ class Story:
         return HN_ITEM + self.id
 
 
+def count_filters(feed: Feed) -> list[str]:
+    filters = []
+    if feed.min_points:
+        filters.append(f"points>={feed.min_points}")
+    if feed.min_comments:
+        filters.append(f"num_comments>={feed.min_comments}")
+    return filters
+
+
+def ids_query_urls(ids: list[int], tags: str, filters: list[str]) -> list[str]:
+    """Algolia requests for the given story ids that match tags and filters, ID_CHUNK ids each."""
+    urls = []
+    for start in range(0, len(ids), ID_CHUNK):
+        chunk = ids[start : start + ID_CHUNK]
+        params = {
+            "tags": f"{tags},({','.join(f'story_{i}' for i in chunk)})",
+            "hitsPerPage": str(len(chunk)),
+        }
+        if filters:
+            params["numericFilters"] = ",".join(filters)
+        urls.append(API + "search?" + urllib.parse.urlencode(params))
+    return urls
+
+
+def fetch_json(url: str):
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.load(r)
+
+
+def fetch_ranked_ids() -> list[int]:
+    """HN's current ranking (up to 500 story ids), the list hackernewsbot reads."""
+    ids = fetch_json(FIREBASE + "topstories.json")
+    if not isinstance(ids, list):
+        raise ValueError("topstories.json is not a list")
+    return [i for i in ids if isinstance(i, int)]
+
+
 def query_url(feed: Feed, now: dt.datetime) -> str:
     """The API request for a feed's stories.
 
     A front_page feed asks for the current front page. Any other feed asks for
     the newest matching stories created within its window.
     """
-    filters = []
-    if feed.min_points:
-        filters.append(f"points>={feed.min_points}")
-    if feed.min_comments:
-        filters.append(f"num_comments>={feed.min_comments}")
+    filters = count_filters(feed)
     params = {"tags": feed.tags, "hitsPerPage": str(min(feed.max_items, MAX_HITS))}
     if feed.follows_front_page:
         endpoint = "search"
@@ -78,6 +114,4 @@ def parse_hits(data: dict) -> list[Story]:
 
 def fetch_stories(url: str) -> list[Story]:
     """Stories for a query_url. Raises on any failure: a feed built from a failed request would be empty."""
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return parse_hits(json.load(r))
+    return parse_hits(fetch_json(url))

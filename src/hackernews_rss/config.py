@@ -25,6 +25,7 @@ class Feed:
     min_comments: int = 0
     window_hours: int = 48
     max_items: int = 150
+    ranked: bool = False  # only stories in HN's current ranking (topstories)
 
     @property
     def follows_front_page(self) -> bool:
@@ -32,7 +33,9 @@ class Feed:
 
 
 REQUIRED = ("file", "title", "tags")
+FLAGS = ("ranked",)
 KNOWN = {f.name for f in fields(Feed)}
+NUMBERS = KNOWN - set(REQUIRED) - set(FLAGS)
 
 
 def parse(text: str) -> list[Feed]:
@@ -60,11 +63,14 @@ def parse(text: str) -> list[Feed]:
         for key in REQUIRED:
             if not isinstance(table[key], str) or not table[key].strip():
                 raise ConfigError(f"{where}: {key} must be a non-empty string")
-        for key in KNOWN - set(REQUIRED):
+        for key in NUMBERS:
             value = table.get(key)
             # bool is an int subclass: reject it explicitly.
             if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 0):
                 raise ConfigError(f"{where}: {key} must be a whole number of at least 0")
+        for key in FLAGS:
+            if key in table and not isinstance(table[key], bool):
+                raise ConfigError(f"{where}: {key} must be true or false")
         feed = Feed(**table)
         if not FILE_RE.match(feed.file) or feed.file == STATE_NAME:
             raise ConfigError(f"{where}: file must be a lowercase name ending in .xml, not {feed.file!r}")

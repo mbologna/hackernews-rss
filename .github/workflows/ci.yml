@@ -1,25 +1,28 @@
 name: CI
 
-# Tests on every push and pull request. On main (push, the schedule or a
-# manual run) the build then fetches the stories and their previews, and
-# publishes the feeds on GitHub Pages. Scheduled runs skip the tests: they
-# already passed on the push that put the code on main.
+# Tests on every push and pull request. On main (a push or a dispatch) the
+# build then fetches the stories and their previews, and publishes the feeds on
+# GitHub Pages.
+#
+# Every 30 minutes the feeds.michelebologna.net Worker's Cron Trigger
+# dispatches this workflow with build_only (mbologna/infra,
+# terraform/dns-michelebologna.net/feeds.tf): GitHub's own schedule ran hours
+# late, or not at all, while a dispatch starts at once. Those runs skip the
+# tests, which already passed on the push that put the code on main.
 #
 # The previous run's state.json comes from the published site itself, so the
 # workflow needs no commits and no cache.
-#
-# GitHub disables a public repo's schedules after 60 days without activity;
-# Renovate's commits keep this one alive.
 
 "on":
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-  schedule:
-    # Every 30 minutes, off the top of the hour, when GitHub's queue is
-    # busiest. Scheduled runs often start late anyway.
-    - cron: "7,37 * * * *"
+    inputs:
+      build_only:
+        description: Skip the tests and only build and publish the feeds
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,7 +34,7 @@ permissions:
 
 jobs:
   python:
-    if: github.event_name != 'schedule'
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
     uses: mbologna/.github/.github/workflows/python-ci.yml@b38077d3c4d6177bdd5e42255b98c0be66758300 # main
     with:
       python_version: "3.15"

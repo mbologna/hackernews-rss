@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from . import PAGE_URL, STATE_NAME, USER_AGENT, config, preview, source, state
+from . import PAGE_URL, STATE_NAME, USER_AGENT, comments, config, preview, source, state
 from .feed import last_build_date, render_feed
 from .page import render_page
 
@@ -48,6 +48,11 @@ def build(config_path: Path, output_dir: Path, page_url: str, previous: str, now
     state.update(current, feeds, results, stamp)
     fetched, failed = state.fetch_previews(current, preview.fetch_preview)
     print(f"previews: fetched {fetched} new, {len(failed)} failed")
+    for url, error in failed:
+        print(f"  {url}: {error}")
+    listed = {s.id for found in results.values() for s in found}
+    fetched, failed = state.fetch_comments(current, comments.fetch_top_comment, listed, stamp)
+    print(f"top comments: looked up {fetched}, {len(failed)} failed")
     for url, error in failed:
         print(f"  {url}: {error}")
 

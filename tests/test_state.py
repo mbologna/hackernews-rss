@@ -3,10 +3,20 @@ import urllib.error
 import pytest
 from conftest import FakeResponse
 
+from hackernews_rss.comments import Comment
 from hackernews_rss.config import Feed
 from hackernews_rss.preview import Preview
 from hackernews_rss.source import Story
-from hackernews_rss.state import MAX_ATTEMPTS, Entry, State, fetch_previews, load, update
+from hackernews_rss.state import (
+    COMMENT_INTERVAL,
+    MAX_ATTEMPTS,
+    Entry,
+    State,
+    fetch_comments,
+    fetch_previews,
+    load,
+    update,
+)
 
 HOUR = 3600
 NOW = 1_800_000_000
@@ -122,6 +132,7 @@ def test_round_trip():
         stories={
             "1": Entry(story(1), Preview("https://i.example/a.png", "desc", "Site"), 0),
             "2": Entry(story(2, url=None), None, 2),
+            "3": Entry(story(3), Preview(), 0, Comment("30", "bob", "nice"), NOW),
         },
         feeds={"frontpage.xml": {"1": NOW, "2": NOW - HOUR}},
     )
@@ -198,3 +209,38 @@ def test_rate_limits_are_retried():
 
     fetch_previews(state, fetch)
     assert state.stories["1"].attempts == 1
+
+
+def test_state_files_from_before_top_comments_still_load():
+    old = b'{"version":1,"stories":{"1":{"story":{"id":"1","title":"T","url":null,"points":1,"comments":0,"created":0,"author":"a","text":""},"preview":null,"attempts":0}},"feeds":{}}'
+    entry = State.from_json(old).stories["1"]
+    assert (entry.comment, entry.comment_checked) == (None, 0)
+
+
+def test_fetch_comments_looks_up_listed_stories_with_comments_at_most_every_interval():
+    state = State(
+        stories={
+            "new": Entry(story("new")),
+            "recent": Entry(story("recent"), comment_checked=NOW - 60),
+            "due": Entry(story("due"), comment=Comment("9", "x", "old"), comment_checked=NOW - COMMENT_INTERVAL),
+            "quiet": Entry(Story("quiet", "T", None, 5, 0, NOW, "a", "")),
+            "gone": Entry(story("gone")),
+            "flaky": Entry(story("flaky")),
+        }
+    )
+    asked = []
+
+    def fetch(sid):
+        asked.append(sid)
+        if sid == "flaky":
+            raise TimeoutError("slow")
+        return None if sid == "due" else Comment("c" + sid, "bob", "hi")
+
+    looked_up, failed = fetch_comments(state, fetch, {"new", "recent", "due", "quiet", "flaky"}, NOW, workers=2)
+    assert sorted(asked) == ["due", "flaky", "new"]
+    assert looked_up == 2
+    assert failed == [("https://news.ycombinator.com/item?id=flaky", "TimeoutError: slow")]
+    assert state.stories["new"].comment == Comment("cnew", "bob", "hi")
+    assert state.stories["new"].comment_checked == NOW
+    assert state.stories["due"].comment is None  # its comments were deleted
+    assert state.stories["flaky"].comment_checked == 0  # retried next run

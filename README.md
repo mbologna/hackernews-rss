@@ -19,6 +19,7 @@ Each item has:
 - the page's `og:image` (falling back to `twitter:image`), also as `media:thumbnail` for list views;
 - the site name (or the domain) and the page's description, cut to about 300 characters;
 - the submitter's own text, for Show HN and other posts that have some, quoted below the page's description (or in its place);
+- the top comment, as HN ranks it, cut to about 300 characters, with a link to it;
 - links to the article and the HN thread, the comment count, the points, and the story's age and author, as `150 points · 🔥 2 hours ago by pg`. As in the Telegram bot, 🔥 marks a story at most 4 hours old and ❄️ one at least 2 days old;
 - `<comments>` set to the HN thread, as in hnrss.
 
@@ -53,7 +54,8 @@ A build:
 1. Reads the previous run's `state.json` from the published site. It holds every listed story with its preview, and when each feed first listed it.
 2. Asks the [Algolia HN API](https://hn.algolia.com/api), the one hnrss uses, for each feed's stories. Feeds that share a query share one request. A ranked feed first reads `topstories.json` from the [HN API](https://github.com/HackerNews/API), then asks Algolia for those ids, 100 per request.
 3. Fetches the previews still missing, eight pages at a time: the first 512 KB of each, with a 10-second timeout. It retries a failed page on the next two runs, except for permanent errors such as `403` and `404`.
-4. Writes each feed, `state.json` and `index.html`, and deploys them.
+4. Looks up the top comment of every listed story that has comments, at most every 2 hours per story: the first live reply in the story's `kids` from the HN API, which lists them in HN's order.
+5. Writes each feed, `state.json` and `index.html`, and deploys them.
 
 The generated files are never committed. Losing `state.json` only means fetching the previews again.
 

@@ -49,7 +49,7 @@ def age_line(created: int, now: int) -> str:
 
 
 def item_html(entry: Entry, now: int) -> str:
-    """The item body: image, source, excerpt, the submitter's text, then links, counts and age."""
+    """The item body: image, source, excerpt, the submitter's text, the top comment, then links, counts and age."""
     story, preview = entry.story, entry.preview or Preview()
     parts = []
     if preview.image:
@@ -63,6 +63,9 @@ def item_html(entry: Entry, now: int) -> str:
             parts.append(f"<blockquote>{escape(story.text)}</blockquote>")
     elif story.text:
         parts.append(f"<p>{escape(story.text)}</p>")
+    if entry.comment:
+        c = entry.comment
+        parts.append(f'<p>💬 <b>{escape(c.author)}</b>: {escape(c.text)} <a href="{escape(c.url)}">→</a></p>')
     stats = [f'<a href="{escape(story.url)}">Article</a>'] if story.url else []
     stats.append(f'<a href="{escape(story.comments_url)}">{plural(story.comments, "comment")}</a>')
     stats.append(plural(story.points, "point"))

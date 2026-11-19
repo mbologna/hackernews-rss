@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
+from hackernews_rss.comments import Comment
 from hackernews_rss.config import Feed
 from hackernews_rss.feed import ATOM, DC, MEDIA, age_line, domain, item_html, last_build_date, render_feed
 from hackernews_rss.page import describe, render_page
@@ -155,3 +156,13 @@ def test_page_lists_feeds():
         describe(best)
         == "newest stories tagged story, at least 100 points, at least 3 comments, kept 48 hours, up to 150 items"
     )
+
+
+def test_top_comment_line():
+    entry = Entry(story(), Preview(), comment=Comment("7", "bob <b>", "Nice & clean"))
+    html = item_html(entry, CREATED)
+    assert (
+        '<p>💬 <b>bob &lt;b&gt;</b>: Nice &amp; clean <a href="https://news.ycombinator.com/item?id=7">→</a></p>'
+        in html
+    )
+    assert html.index("💬") < html.index("Article")

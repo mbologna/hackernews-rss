@@ -16,12 +16,14 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from . import USER_AGENT
+from .comments import Comment
 from .config import Feed
 from .preview import Preview
 from .source import Story
 
 VERSION = 1
 MAX_ATTEMPTS = 3  # preview fetches per story before giving up on it
+COMMENT_INTERVAL = 2 * 3600  # how often a listed story's top comment is looked up again
 RETRY_STATUSES = {408, 429}  # client errors worth another try; other 4xx won't change
 
 
@@ -30,6 +32,8 @@ class Entry:
     story: Story
     preview: Preview | None = None  # None until a fetch succeeds
     attempts: int = 0
+    comment: Comment | None = None  # the top comment when last looked up
+    comment_checked: int = 0  # Unix time of that lookup; 0 = never
 
     @property
     def wants_preview(self) -> bool:
@@ -50,6 +54,8 @@ class State:
                     "story": asdict(e.story),
                     "preview": asdict(e.preview) if e.preview else None,
                     "attempts": e.attempts,
+                    "comment": asdict(e.comment) if e.comment else None,
+                    "comment_checked": e.comment_checked,
                 }
                 for sid, e in self.stories.items()
             },
@@ -69,6 +75,9 @@ class State:
                     story=Story(**e["story"]),
                     preview=Preview(**e["preview"]) if e["preview"] is not None else None,
                     attempts=int(e["attempts"]),
+                    # Added after the first release: absent from older state files.
+                    comment=Comment(**e["comment"]) if e.get("comment") else None,
+                    comment_checked=int(e.get("comment_checked", 0)),
                 )
                 for sid, e in data["stories"].items()
             }
@@ -159,4 +168,32 @@ def fetch_previews(state: State, fetch, workers: int = 8) -> tuple[int, list[tup
                 )
                 entry.attempts = MAX_ATTEMPTS if permanent else entry.attempts + 1
                 failed.append((entry.story.url, f"{type(e).__name__}: {e}"))
+    return fetched, failed
+
+
+def fetch_comments(
+    state: State, fetch, listed: set[str], now: int, workers: int = 8
+) -> tuple[int, list[tuple[str, str]]]:
+    """Look up the top comment of the listed stories that have comments, at most every COMMENT_INTERVAL.
+
+    Only stories a feed still lists: the top comment of one that has dropped
+    off changes little. A failed lookup is retried on the next run.
+    """
+    todo = [
+        e
+        for sid, e in state.stories.items()
+        if sid in listed and e.story.comments and now - e.comment_checked >= COMMENT_INTERVAL
+    ]
+    fetched, failed = 0, []
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(fetch, e.story.id): e for e in todo}
+        for future in as_completed(futures):
+            entry = futures[future]
+            try:
+                entry.comment = future.result()
+            except Exception as e:  # as in fetch_previews: one bad item must not break the feeds
+                failed.append((entry.story.comments_url, f"{type(e).__name__}: {e}"))
+                continue
+            entry.comment_checked = now
+            fetched += 1
     return fetched, failed

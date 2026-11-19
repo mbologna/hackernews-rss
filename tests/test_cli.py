@@ -35,6 +35,9 @@ def setup(tmp_path, web, now):
     for n in (1, 2):
         web.html(f"https://example.com/{n}", OG.format(n=n))
     web.status("https://example.com/3", 403)
+    web.json(FIREBASE + "item/1.json", {"kids": [11]})
+    web.json(FIREBASE + "item/11.json", {"by": "alice", "text": "First! <i>really</i>"})
+    web.json(FIREBASE + "item/", {"kids": []})  # the other stories: no comments yet
     return config
 
 
@@ -62,6 +65,8 @@ def test_build_writes_every_feed_and_reuses_the_state(tmp_path, web, capsys):
     assert "previews: fetched 2 new, 1 failed" in log
     assert "https://example.com/3: HTTPError: HTTP Error 403" in log
     assert "best.xml: 2 items, 1 with an image, 1 with an excerpt" in log
+    assert "top comments: looked up 3, 0 failed" in log
+    assert "💬 &lt;b&gt;alice&lt;/b&gt;: First! really" in front
     # One request per distinct query, one per page.
     assert sum(r.startswith(API) for r in web.requests) == 2
 
@@ -71,7 +76,9 @@ def test_build_writes_every_feed_and_reuses_the_state(tmp_path, web, capsys):
     web.routes[PAGE + "state.json"] = lambda: FakeResponse((out / "state.json").read_bytes(), "application/json")
     assert build(config, tmp_path / "next") == 0
     assert [r for r in web.requests if not r.startswith(API)] == [PAGE + "state.json"]
-    assert "previews: fetched 0 new, 0 failed" in capsys.readouterr().out
+    log = capsys.readouterr().out
+    assert "previews: fetched 0 new, 0 failed" in log
+    assert "top comments: looked up 0, 0 failed" in log  # checked less than COMMENT_INTERVAL ago
     state = json.loads((tmp_path / "next" / "state.json").read_bytes())
     assert set(state["stories"]) == {"1", "2", "3"}
 

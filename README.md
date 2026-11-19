@@ -77,6 +77,34 @@ The generated files are never committed. Losing `state.json` only means fetching
 
 After deploying, the workflow fetches every published feed and fails if one is missing or its `lastBuildDate` is more than 3 hours old. If the dispatches stop, the freshness check can't notice (it runs in the same workflow); the outside check of `health.json` through the Worker does, and alerts.
 
+## Run it yourself
+
+The script needs Python 3.12 or later and network access to the HN APIs and the linked pages, but no other packages. It reads the feed list from `feeds.toml` in the working directory, so start from a copy of this repo's file. With [uv](https://docs.astral.sh/uv/):
+
+```sh
+curl -O https://raw.githubusercontent.com/mbologna/hackernews-rss/main/feeds.toml
+uvx --from git+https://github.com/mbologna/hackernews-rss hackernews-rss build \
+  --output-dir public --page-url https://hn.example.com/ --previous-state public/state.json
+```
+
+From a clone, `uv run hackernews-rss build` takes the same options. The `build` options:
+
+- `--config`: the feed list (default `feeds.toml`);
+- `--output-dir`: where to write the feeds, `index.html`, `health.json`, `state.json` and the icons (default `public`);
+- `--page-url`: the URL the folder is served from, used for the links in the feeds and on the index page (default: this site's address);
+- `--previous-state`: the previous run's `state.json`, as a path or URL. Without the option the build fetches `state.json` from `--page-url`; an empty string starts fresh.
+
+Keep the output directory between runs and point `--previous-state` at the `state.json` inside it: the build reads it before writing the new one. The digest's frozen days, the fetched previews and the time each feed first listed a story all live there. A missing or unreadable file starts an empty state, as on the first run, so every preview is fetched again.
+
+Serve the folder with any static web server, such as nginx, Caddy or `python3 -m http.server`. The published site rebuilds every 30 minutes, at :07 and :37, from the directory that holds `feeds.toml`:
+
+```cron
+# Every 30 minutes, at :07 and :37
+7,37 * * * *  cd /srv/hackernews-rss && uvx --from git+https://github.com/mbologna/hackernews-rss hackernews-rss build --output-dir /var/www/hn --page-url https://hn.example.com/ --previous-state /var/www/hn/state.json
+```
+
+Give cron the full path to `uvx` if its `PATH` does not include it. `hackernews-rss check --page-url https://hn.example.com/`, run from the same directory, exits with status 1 when a configured feed is missing or was built more than 3 hours ago (`--max-age-hours`).
+
 ## Development
 
 ```sh

@@ -46,6 +46,16 @@ def build(config_path: Path, output_dir: Path, page_url: str, previous: str, now
         else:
             results[feed.file] = stories(source.query_url(feed, now))
 
+    # Stories a feed still holds but the API no longer lists for it (off the
+    # front page, unranked): refresh their counts, 100 per request.
+    listed = {s.id for found in results.values() for s in found}
+    unlisted = sorted({sid for seen in current.feeds.values() for sid in seen} - listed)
+    for url in source.ids_query_urls(unlisted, "story", []):
+        for story in stories(url):
+            if story.id in current.stories:
+                state.merge_story(current, story)
+    print(f"counts: refreshed {len(unlisted)} stories no longer listed")
+
     stamp = int(now.timestamp())
     for digest in conf.digests:
         for day in state.digest_days_due(current, digest, stamp):
@@ -57,7 +67,6 @@ def build(config_path: Path, output_dir: Path, page_url: str, previous: str, now
     print(f"previews: fetched {fetched} new, {len(failed)} failed")
     for url, error in failed:
         print(f"  {url}: {error}")
-    listed = {s.id for found in results.values() for s in found}
     fetched, failed = state.fetch_comments(current, comments.fetch_top_comment, listed, stamp)
     print(f"top comments: looked up {fetched}, {len(failed)} failed")
     for url, error in failed:
@@ -136,7 +145,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "build":
-            previous = feed_url(args.page_url, STATE_NAME) if args.previous_state is None else args.previous_state
+            # The Pages CDN caches state.json for 10 minutes and ignores query
+            # strings, so a run that starts within 10 minutes of a deploy reads
+            # the state before it. That costs refetching the previews and top
+            # comments of the stories the newer run added, nothing more.
+            default = feed_url(args.page_url, STATE_NAME)
+            previous = default if args.previous_state is None else args.previous_state
             build(args.config, args.output_dir, args.page_url, previous, now)
             return 0
         return 0 if check(args.config, args.page_url, dt.timedelta(hours=args.max_age_hours), now) else 1

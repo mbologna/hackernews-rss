@@ -185,3 +185,22 @@ def test_digest_publishes_due_days_once(tmp_path, web, capsys):
     assert not [r for r in web.requests if r.startswith(API)]  # frozen: never asked again
     assert "previews: fetched 0 new" in capsys.readouterr().out
     assert "digest.xml" in (tmp_path / "again" / "index.html").read_text()
+
+
+def test_stories_no_longer_listed_get_fresh_counts(tmp_path, web, capsys):
+    config = tmp_path / "feeds.toml"
+    config.write_text('[[feed]]\nfile = "f.xml"\ntitle = "F"\ntags = "front_page"\n')
+    now = int(dt.datetime.now(dt.UTC).timestamp())
+    web.json(API + "search?tags=front_page", {"hits": [hit(1, points=10, created=now), hit(2, created=now)]})
+    for n in (1, 2):
+        web.html(f"https://example.com/{n}", "<head></head>")
+    web.json(FIREBASE + "item/", {"kids": []})
+    out = tmp_path / "out"
+    assert build(config, out, "--previous-state", "") == 0
+
+    # Story 1 drops off the front page; the id query reports its new count.
+    web.json(API + "search?tags=front_page", {"hits": [hit(2, created=now)]})
+    web.json(API + "search?tags=story%2C%28story_1%29", {"hits": [hit(1, points=321, created=now)]})
+    assert build(config, tmp_path / "next", "--previous-state", str(out / "state.json")) == 0
+    assert "321 points" in (tmp_path / "next" / "f.xml").read_text()
+    assert "counts: refreshed 1 stories no longer listed" in capsys.readouterr().out

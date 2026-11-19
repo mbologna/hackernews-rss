@@ -5,16 +5,16 @@
 
 Hacker News RSS feeds whose items carry the linked page's image and excerpt, next to the article and comments links. [hnrss](https://github.com/hnrss/hnrss) gives you only the links. This repo builds the feeds with a scheduled GitHub Actions workflow and publishes them as static files on GitHub Pages.
 
-**Subscribe:** <https://feeds.michelebologna.net/hackernews-rss/>
+**Subscribe:** <https://hackernews-rss.michelebologna.net/>
 
-The feeds are published on GitHub Pages and served at `feeds.michelebologna.net`, a proxy in front of every feed I publish, so the URLs above keep working wherever the files are hosted. The `mbologna.github.io/hackernews-rss/` URLs work too.
+The feeds are published on GitHub Pages and served at `hackernews-rss.michelebologna.net` by a Cloudflare Worker, so the URLs above keep working wherever the files are hosted. `https://hackernews-rss.michelebologna.net/healthz` answers 200 `{"status":"ok",…}`, or 503 when the last build is over 3 hours old or a feed's items mostly lack an image.
 
 | Feed | URL |
 | --- | --- |
-| The current front page | `https://feeds.michelebologna.net/hackernews-rss/frontpage.xml` |
-| Stories with 100+ points | `https://feeds.michelebologna.net/hackernews-rss/best.xml` |
-| Ranked stories with 150+ points, as the [@hacker_news_feed](https://t.me/hacker_news_feed) Telegram bot posts them | `https://feeds.michelebologna.net/hackernews-rss/top.xml` |
-| A daily digest: the 20 stories with the most points of each UTC day, one item per day at 06:00 UTC | `https://feeds.michelebologna.net/hackernews-rss/digest.xml` |
+| The current front page | `https://hackernews-rss.michelebologna.net/frontpage.xml` |
+| Stories with 100+ points | `https://hackernews-rss.michelebologna.net/best.xml` |
+| Ranked stories with 150+ points, as the [@hacker_news_feed](https://t.me/hacker_news_feed) Telegram bot posts them | `https://hackernews-rss.michelebologna.net/top.xml` |
+| A daily digest: the 20 stories with the most points of each UTC day, one item per day at 06:00 UTC | `https://hackernews-rss.michelebologna.net/digest.xml` |
 
 Each item has:
 
@@ -59,7 +59,7 @@ An item's `pubDate` is when that feed first listed the story, not when it was po
 The [CI workflow](.github/workflows/ci.yml) runs the tests on every push and pull request. On `main` it then builds the feeds and deploys them to GitHub Pages:
 
 - on every push;
-- every 30 minutes (at :07 and :37), dispatched by a Cron Trigger on the feeds.michelebologna.net Worker: GitHub's own schedule ran hours late, or not at all. Those runs skip the tests;
+- every 30 minutes (at :07 and :37), dispatched by a Cron Trigger on the Worker that serves the feeds: GitHub's own schedule ran hours late, or not at all. Those runs skip the tests;
 - on a manual run.
 
 A build:

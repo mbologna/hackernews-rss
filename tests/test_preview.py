@@ -82,3 +82,35 @@ def test_fetch_raises_on_http_errors(web):
     web.status("https://example.com/gone", 404)
     with pytest.raises(OSError):
         fetch_preview("https://example.com/gone")
+
+
+LONG = "This paragraph is long enough to stand in for a page description, being well past the minimum."
+
+
+def test_first_paragraph_inside_article_stands_in_for_a_description():
+    html = f"""<html><head><title>No description</title></head><body>
+    <nav><p>{LONG} (navigation)</p></nav>
+    <p>Short byline.</p>
+    <p>{LONG} (outside the article)</p>
+    <article><p>Too short.</p><p>{LONG} <a href="/x">(the article)</a><br>next line</p></article>
+    </body></html>"""
+    assert parse_preview(html, "https://example.com/").description == f"{LONG} (the article) next line"
+
+
+def test_first_long_paragraph_anywhere_without_an_article():
+    html = f"<body><header><p>{LONG} (header)</p></header><p>{LONG} (one)<p>{LONG} (two)</body>"
+    assert parse_preview(html, "https://example.com/").description == f"{LONG} (one)"
+
+
+def test_unclosed_paragraph_at_the_end_counts():
+    assert parse_preview(f"<body><main><p>{LONG}", "https://example.com/").description == LONG
+
+
+def test_script_text_is_never_a_paragraph():
+    html = f"<body><p><script>var x = '{LONG}';</script></p></body>"
+    assert parse_preview(html, "https://example.com/").description is None
+
+
+def test_meta_description_beats_paragraphs():
+    html = f'<head><meta name="description" content="Meta"></head><body><article><p>{LONG}</p></article></body>'
+    assert parse_preview(html, "https://example.com/").description == "Meta"

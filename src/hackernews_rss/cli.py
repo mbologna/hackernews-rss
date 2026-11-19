@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import importlib.resources
 import sys
 import urllib.error
 import urllib.request
@@ -66,6 +67,9 @@ def build(config_path: Path, output_dir: Path, page_url: str, previous: str, now
         excerpts = sum(1 for e, _ in items if (e.preview and e.preview.description) or e.story.text)
         print(f"{feed.file}: {len(items)} items, {images} with an image, {excerpts} with an excerpt")
     (output_dir / STATE_NAME).write_bytes(current.to_json())
+    # The icons: the feeds' <image> and the index page's favicon.
+    for asset in importlib.resources.files("hackernews_rss").joinpath("site").iterdir():
+        (output_dir / asset.name).write_bytes(asset.read_bytes())
     page = render_page([(f, feed_url(page_url, f.file)) for f in feeds])
     (output_dir / "index.html").write_text(page, encoding="utf-8")
 

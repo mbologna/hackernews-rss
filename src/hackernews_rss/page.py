@@ -35,6 +35,8 @@ def render_page(feeds: list[tuple[Feed, str]]) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hacker News RSS</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.png">
   <style>
     body {{ font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }}
     li {{ margin-bottom: 1rem; }}

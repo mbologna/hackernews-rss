@@ -8,7 +8,7 @@ from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
 from . import USER_AGENT
-from .text import excerpt
+from .text import excerpt, squash
 
 MAX_BYTES = 512 * 1024  # the <head> comes first; no need for the whole page
 HTML_TYPES = {"text/html", "application/xhtml+xml"}
@@ -23,31 +23,79 @@ class Preview:
     site_name: str | None = None
 
 
-class _MetaParser(HTMLParser):
-    """Collects <meta property|name=... content=...> up to the end of <head>."""
+PARAGRAPH_MIN = 80  # shorter paragraphs are bylines, captions and the like
+SKIPPED = {"script", "style", "noscript", "nav", "header", "footer", "aside", "form"}
+CONTENT = {"article", "main"}
+
+
+class _PageParser(HTMLParser):
+    """Collects <meta property|name=... content=...> up to the end of <head>, and the first real paragraphs.
+
+    The paragraphs stand in for a missing description: the first one of at
+    least PARAGRAPH_MIN characters inside <article> or <main>, else the first
+    anywhere, outside navigation, headers, footers and scripts.
+    """
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.meta: dict[str, str] = {}
-        self.done = False
+        self.in_head = True
+        self.skip = 0  # depth inside SKIPPED elements
+        self.content = 0  # depth inside CONTENT elements
+        self.buffer: list[str] | None = None  # the open <p>'s text
+        self.first_paragraph: str | None = None
+        self.content_paragraph: str | None = None
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if self.done:
-            return
         if tag == "body":
-            self.done = True
-            return
-        if tag != "meta":
-            return
-        a = {k.lower(): v for k, v in attrs if v is not None}
-        key = (a.get("property") or a.get("name") or "").strip().lower()
-        content = (a.get("content") or "").strip()
-        if key and content:
-            self.meta.setdefault(key, content)
+            self.in_head = False
+        elif tag == "meta" and self.in_head:
+            a = {k.lower(): v for k, v in attrs if v is not None}
+            key = (a.get("property") or a.get("name") or "").strip().lower()
+            content = (a.get("content") or "").strip()
+            if key and content:
+                self.meta.setdefault(key, content)
+        if tag in SKIPPED:
+            self.skip += 1
+        elif tag in CONTENT:
+            self.content += 1
+        elif tag == "p":
+            self._close_paragraph()  # an unclosed <p> ends where the next begins
+            if not self.skip:
+                self.buffer = []
+        elif tag == "br" and self.buffer is not None:
+            self.buffer.append(" ")
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "head":
-            self.done = True
+            self.in_head = False
+        elif tag in SKIPPED:
+            self.skip = max(0, self.skip - 1)
+        elif tag in CONTENT:
+            self._close_paragraph()
+            self.content = max(0, self.content - 1)
+        elif tag == "p":
+            self._close_paragraph()
+
+    def handle_data(self, data: str) -> None:
+        if self.buffer is not None and not self.skip:
+            self.buffer.append(data)
+
+    def _close_paragraph(self) -> None:
+        if self.buffer is None:
+            return
+        text = squash("".join(self.buffer))
+        self.buffer = None
+        if len(text) < PARAGRAPH_MIN:
+            return
+        if self.first_paragraph is None:
+            self.first_paragraph = text
+        if self.content and self.content_paragraph is None:
+            self.content_paragraph = text
+
+    def close(self) -> None:
+        super().close()
+        self._close_paragraph()
 
 
 def _first(meta: dict[str, str], keys: tuple[str, ...]) -> str | None:
@@ -55,7 +103,7 @@ def _first(meta: dict[str, str], keys: tuple[str, ...]) -> str | None:
 
 
 def parse_preview(html: str, base_url: str) -> Preview:
-    parser = _MetaParser()
+    parser = _PageParser()
     parser.feed(html)
     parser.close()
     meta = parser.meta
@@ -63,7 +111,7 @@ def parse_preview(html: str, base_url: str) -> Preview:
     # The first image that resolves to a web URL: skip data: and javascript: ones.
     candidates = (urljoin(base_url, meta[k]) for k in IMAGE_KEYS if k in meta)
     image = next((u for u in candidates if urlsplit(u).scheme in ("http", "https")), None)
-    description = _first(meta, DESCRIPTION_KEYS)
+    description = _first(meta, DESCRIPTION_KEYS) or parser.content_paragraph or parser.first_paragraph
     site_name = meta.get("og:site_name")
     return Preview(
         image=image,

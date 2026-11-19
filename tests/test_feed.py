@@ -5,7 +5,17 @@ import pytest
 
 from hackernews_rss.comments import Comment
 from hackernews_rss.config import Feed
-from hackernews_rss.feed import ATOM, DC, MEDIA, age_line, domain, item_html, last_build_date, render_feed
+from hackernews_rss.feed import (
+    ATOM,
+    DC,
+    MEDIA,
+    age_line,
+    categories,
+    domain,
+    item_html,
+    last_build_date,
+    render_feed,
+)
 from hackernews_rss.page import describe, render_page
 from hackernews_rss.preview import Preview
 from hackernews_rss.source import Story
@@ -166,3 +176,23 @@ def test_top_comment_line():
         in html
     )
     assert html.index("💬") < html.index("Article")
+
+
+def test_categories_and_channel_image():
+    entry = Entry(story(title="Show HN: A thing"), Preview())
+    _, root = render([(entry, CREATED)])
+    channel = root.find("channel")
+    assert channel.findtext("image/url") == "https://site.example/icon.png"
+    assert channel.findtext("image/link") == "https://site.example/"
+    assert [c.text for c in channel.find("item").findall("category")] == ["Show HN", "example.com"]
+
+
+def test_categories_of_a_text_post():
+    assert categories(story(title="Ask HN: Why?", url=None)) == ["Ask HN"]
+    assert categories(story(title="Showing HN things")) == ["example.com"]
+
+
+def test_page_links_the_icons():
+    page = render_page([(FEED, "https://site.example/frontpage.xml")])
+    assert '<link rel="icon" href="favicon.svg" type="image/svg+xml">' in page
+    assert '<link rel="apple-touch-icon" href="icon.png">' in page

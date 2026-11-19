@@ -17,11 +17,14 @@ Each item has:
 
 - the title, linking to the article (Ask HN and other text posts link to the thread);
 - the page's `og:image` (falling back to `twitter:image`), also as `media:thumbnail` for list views;
-- the site name (or the domain) and the page's description, cut to about 300 characters;
+- the site name (or the domain) and the page's description, cut to about 300 characters. A page without a description gets its first real paragraph instead (inside `<article>` or `<main>` when it has one);
 - the submitter's own text, for Show HN and other posts that have some, quoted below the page's description (or in its place);
 - the top comment, as HN ranks it, cut to about 300 characters, with a link to it;
 - links to the article and the HN thread, the comment count, the points, and the story's age and author, as `150 points · 🔥 2 hours ago by pg`. As in the Telegram bot, 🔥 marks a story at most 4 hours old and ❄️ one at least 2 days old;
-- `<comments>` set to the HN thread, as in hnrss.
+- `<comments>` set to the HN thread, as in hnrss;
+- `<category>` tags with the post kind (Show HN, Ask HN, Launch HN, Tell HN) and the linked domain, for reader filters and rules.
+
+Each feed carries an icon (`<image>`), so readers show one next to its name.
 
 The counts are a snapshot from when the item was built. A page that blocks bots (`403`), times out or isn't HTML gets an item without the image and excerpt.
 

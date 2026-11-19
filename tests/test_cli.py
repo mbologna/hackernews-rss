@@ -55,10 +55,18 @@ def test_build_writes_every_feed_and_reuses_the_state(tmp_path, web, capsys):
     out = tmp_path / "public"
 
     assert build(config, out, "--previous-state", "") == 0
-    assert sorted(p.name for p in out.iterdir()) == ["best.xml", "frontpage.xml", "index.html", "state.json"]
+    assert sorted(p.name for p in out.iterdir()) == [
+        "best.xml",
+        "favicon.svg",
+        "frontpage.xml",
+        "icon.png",
+        "index.html",
+        "state.json",
+    ]
     assert guids(out / "frontpage.xml") == ["2", "1"]
     assert guids(out / "best.xml") == ["1", "3"]
     front = (out / "frontpage.xml").read_text()
+    assert (out / "icon.png").read_bytes().startswith(b"\x89PNG")
     assert "https://example.com/i.png" in front
     assert "Desc 1" in front
     log = capsys.readouterr().out

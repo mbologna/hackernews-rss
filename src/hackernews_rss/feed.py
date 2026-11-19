@@ -75,6 +75,17 @@ def item_html(entry: Entry, now: int) -> str:
     return "\n".join(parts)
 
 
+KINDS = ("Show HN", "Ask HN", "Launch HN", "Tell HN")
+ICON = "icon.png"  # in site/, copied next to the feeds
+
+
+def categories(story) -> list[str]:
+    """Reader-filterable tags: the post kind, from its title prefix, and the linked domain."""
+    found = [k for k in KINDS if story.title.startswith(k + ":")]
+    host = domain(story.url)
+    return found + ([host] if host else [])
+
+
 def utc(timestamp: int) -> dt.datetime:
     return dt.datetime.fromtimestamp(timestamp, dt.UTC)
 
@@ -95,6 +106,10 @@ def render_feed(feed: Feed, items: list[tuple[Entry, int]], feed_url: str, page_
     ET.SubElement(channel, "lastBuildDate").text = format_datetime(now)
     ET.SubElement(channel, "generator").text = "hackernews-rss"
     ET.SubElement(channel, "ttl").text = "30"
+    image = ET.SubElement(channel, "image")
+    ET.SubElement(image, "url").text = page_url.rstrip("/") + "/" + ICON
+    ET.SubElement(image, "title").text = feed.title
+    ET.SubElement(image, "link").text = page_url
     for entry, first_seen in items:
         story = entry.story
         item = ET.SubElement(channel, "item")
@@ -104,6 +119,8 @@ def render_feed(feed: Feed, items: list[tuple[Entry, int]], feed_url: str, page_
         ET.SubElement(item, "comments").text = story.comments_url
         ET.SubElement(item, "guid", {"isPermaLink": "false"}).text = story.comments_url
         ET.SubElement(item, "pubDate").text = format_datetime(utc(first_seen))
+        for category in categories(story):
+            ET.SubElement(item, "category").text = category
         if story.author:
             ET.SubElement(item, f"{{{DC}}}creator").text = story.author
         image = entry.preview.image if entry.preview else None

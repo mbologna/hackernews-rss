@@ -1,0 +1,107 @@
+name: CI
+
+# Tests on every push and pull request. On main (push, the schedule or a
+# manual run) the build then fetches the stories and their previews, and
+# publishes the feeds on GitHub Pages. Scheduled runs skip the tests: they
+# already passed on the push that put the code on main.
+#
+# The previous run's state.json comes from the published site itself, so the
+# workflow needs no commits and no cache.
+#
+# GitHub disables a public repo's schedules after 60 days without activity;
+# Renovate's commits keep this one alive.
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Every 30 minutes, off the top of the hour, when GitHub's queue is
+    # busiest. Scheduled runs often start late anyway.
+    - cron: "7,37 * * * *"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Never cancel a run on the default branch: it may be deploying.
+  cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    if: github.event_name != 'schedule'
+    uses: mbologna/.github/.github/workflows/python-ci.yml@b38077d3c4d6177bdd5e42255b98c0be66758300 # main
+    with:
+      python_version: "3.15"
+      enable_codecov: false
+    secrets: inherit
+
+  build:
+    name: Build feeds
+    needs: python
+    # needs alone would skip the build whenever the tests are skipped.
+    if: >-
+      !cancelled()
+      && (needs.python.result == 'success' || needs.python.result == 'skipped')
+      && github.event_name != 'pull_request'
+      && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: "3.15"
+
+      - name: Build
+        run: uv run --locked --no-dev hackernews-rss build --output-dir public
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: public
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
+    runs-on: ubuntu-26.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  freshness:
+    name: Check the published feeds
+    needs: deploy
+    # Also runs when an earlier job failed, so a broken build or deploy shows
+    # up as stale feeds once it has gone on for over 3 hours.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: "3.15"
+
+      - name: Fail if a published feed is missing or older than 3 hours
+        run: uv run --locked --no-dev hackernews-rss check --max-age-hours 3

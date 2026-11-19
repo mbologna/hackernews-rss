@@ -1,0 +1,78 @@
+# Hacker News RSS
+
+[![CI](https://github.com/mbologna/hackernews-rss/actions/workflows/ci.yml/badge.svg)](https://github.com/mbologna/hackernews-rss/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+Hacker News RSS feeds whose items carry the linked page's image and excerpt, next to the article and comments links. [hnrss](https://github.com/hnrss/hnrss) gives you only the links. This repo builds the feeds with a scheduled GitHub Actions workflow and publishes them as static files on GitHub Pages.
+
+**Subscribe:** <https://mbologna.github.io/hackernews-rss/>
+
+| Feed | URL |
+| --- | --- |
+| The current front page | `https://mbologna.github.io/hackernews-rss/frontpage.xml` |
+| Stories with 100+ points | `https://mbologna.github.io/hackernews-rss/best.xml` |
+
+Each item has:
+
+- the title, linking to the article (Ask HN and other text posts link to the thread);
+- the page's `og:image` (falling back to `twitter:image`), also as `media:thumbnail` for list views;
+- the site name (or the domain) and the page's description, cut to about 300 characters;
+- links to the article and the HN thread, the comment count and the points;
+- `<comments>` set to the HN thread, as in hnrss.
+
+The counts are a snapshot from when the item was built. A page that blocks bots (`403`), times out or isn't HTML gets an item without the image and excerpt.
+
+## Feeds
+
+[`feeds.toml`](feeds.toml) lists the feeds. Each `[[feed]]` table has:
+
+- `file`: the published file name, ending in `.xml`.
+- `title`: the feed's title.
+- `tags`: [Algolia tags](https://hn.algolia.com/api) such as `front_page`, `story`, `show_hn` or `ask_hn`. A feed with `front_page` follows the current front page. Any other feed takes the newest matching stories created within its window.
+- `min_points`, `min_comments`: only stories with at least that many (default 0).
+- `window_hours`: how long a story stays in the feed after it first appeared there (default 48).
+- `max_items`: the most items the feed holds (default 150).
+
+A push to `main` republishes the feeds. An unknown key or a duplicate `file` fails the build.
+
+An item's `pubDate` is when that feed first listed the story, not when it was posted. A story that crosses 100 points a day after it was posted is new to `best.xml` then, and a reader sorting by date shows it at the top. A new feed's first batch is the exception: it carries the stories' post times.
+
+## How it's published
+
+The [CI workflow](.github/workflows/ci.yml) runs the tests on every push and pull request. On `main` it then builds the feeds and deploys them to GitHub Pages:
+
+- on every push;
+- every 30 minutes (at :07 and :37; GitHub often starts scheduled runs late);
+- on a manual run.
+
+A build:
+
+1. Reads the previous run's `state.json` from the published site. It holds every listed story with its preview, and when each feed first listed it.
+2. Asks the [Algolia HN API](https://hn.algolia.com/api), the one hnrss uses, for each feed's stories. Feeds that share a query share one request.
+3. Fetches the previews still missing, eight pages at a time: the first 512 KB of each, with a 10-second timeout. It retries a failed page on the next two runs, except for permanent errors such as `403` and `404`.
+4. Writes each feed, `state.json` and `index.html`, and deploys them.
+
+The generated files are never committed. Losing `state.json` only means fetching the previews again.
+
+After deploying, the workflow fetches every published feed and fails if one is missing or its `lastBuildDate` is more than 3 hours old. GitHub disables a public repo's scheduled workflows after 60 days without activity. Renovate's commits keep this one active. A disabled schedule runs nothing, so nothing fails either: if that ever happens, re-enable the workflow from the Actions tab.
+
+## Development
+
+```sh
+uv run pytest
+uv run ruff check . && uv run ruff format --check .
+
+# Build into public/ against the live APIs, starting from no state
+uv run hackernews-rss build --output-dir public --previous-state ''
+
+# Check the published feeds' age
+uv run hackernews-rss check --max-age-hours 3
+```
+
+The tests never touch the network: they swap `urlopen` for a table of canned responses.
+
+Dependencies resolve only to releases at least 7 days old (`exclude-newer` in `pyproject.toml`). The script itself needs none, only the standard library.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

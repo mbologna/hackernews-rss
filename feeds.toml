@@ -1,0 +1,25 @@
+# The published feeds, one [[feed]] table each. A push to main republishes
+# them; removing a feed stops publishing its file.
+#
+#   file          the file name under https://mbologna.github.io/hackernews-rss/
+#   title         the feed's title in the reader
+#   tags          Algolia tags: front_page, story, show_hn, ask_hn, ...
+#                 (comma-separated tags must all match). With front_page the
+#                 feed follows the current front page; otherwise it takes the
+#                 newest matching stories of the last window_hours.
+#   min_points    only stories with at least this many points (default 0)
+#   min_comments  only stories with at least this many comments (default 0)
+#   window_hours  how long a story stays in the feed after it first matched
+#                 (default 48)
+#   max_items     the most items the feed holds (default 150)
+
+[[feed]]
+file = "frontpage.xml"
+title = "Hacker News: front page"
+tags = "front_page"
+
+[[feed]]
+file = "best.xml"
+title = "Hacker News: 100+ points"
+tags = "story"
+min_points = 100

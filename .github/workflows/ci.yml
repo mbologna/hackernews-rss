@@ -4,9 +4,9 @@ name: CI
 # build then fetches the stories and their previews, and publishes the feeds on
 # GitHub Pages.
 #
-# Every 30 minutes the feeds Worker's Cron Trigger
-# dispatches this workflow with build_only (mbologna/infra,
-# terraform/dns-michelebologna.net/feeds.tf): GitHub's own schedule ran hours
+# Every 30 minutes a Cloudflare Worker's Cron Trigger (configured in a
+# private repository) dispatches this workflow with build_only: GitHub's
+# own schedule ran hours
 # late, or not at all, while a dispatch starts at once. Those runs skip the
 # tests, which already passed on the push that put the code on main.
 #

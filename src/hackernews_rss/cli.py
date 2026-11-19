@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import importlib.resources
+import json
 import sys
 import urllib.error
 import urllib.request
@@ -13,6 +14,9 @@ from pathlib import Path
 from . import PAGE_URL, STATE_NAME, USER_AGENT, comments, config, preview, source, state
 from .feed import last_build_date, render_digest, render_feed
 from .page import render_page
+
+HEALTH_NAME = "health.json"
+IMAGE_RATE_FLOOR = 0.3  # below this share of items with an image, something is blocking or broken
 
 
 def feed_url(page_url: str, file: str) -> str:
@@ -73,6 +77,7 @@ def build(config_path: Path, output_dir: Path, page_url: str, previous: str, now
         print(f"  {url}: {error}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    health: dict = {"built": stamp, "feeds": {}, "digests": {}}
     for feed in feeds:
         seen = current.feeds[feed.file]
         items = [(current.stories[sid], t) for sid, t in seen.items()]
@@ -81,6 +86,10 @@ def build(config_path: Path, output_dir: Path, page_url: str, previous: str, now
         images = sum(1 for e, _ in items if e.preview and e.preview.image)
         excerpts = sum(1 for e, _ in items if (e.preview and e.preview.description) or e.story.text)
         print(f"{feed.file}: {len(items)} items, {images} with an image, {excerpts} with an excerpt")
+        health["feeds"][feed.file] = {"items": len(items), "images": images, "excerpts": excerpts}
+        if len(items) >= 10 and images < IMAGE_RATE_FLOOR * len(items):
+            # A GitHub Actions annotation: shows on the run's summary page.
+            print(f"::warning::{feed.file}: only {images} of {len(items)} items have an image")
     for digest in conf.digests:
         days = sorted(current.digests.get(digest.file, {}).items(), reverse=True)
         entries = [
@@ -90,6 +99,9 @@ def build(config_path: Path, output_dir: Path, page_url: str, previous: str, now
         document = render_digest(digest, entries, feed_url(page_url, digest.file), page_url, now)
         (output_dir / digest.file).write_bytes(document)
         print(f"{digest.file}: {len(entries)} days")
+        health["digests"][digest.file] = {"days": len(entries)}
+    # For outside monitoring: when the build ran and how the feeds look.
+    (output_dir / HEALTH_NAME).write_text(json.dumps(health, indent=2) + "\n", encoding="utf-8")
     (output_dir / STATE_NAME).write_bytes(current.to_json())
     # The icons: the feeds' <image> and the index page's favicon.
     for asset in importlib.resources.files("hackernews_rss").joinpath("site").iterdir():

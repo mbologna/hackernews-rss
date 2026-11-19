@@ -67,7 +67,9 @@ A build:
 3. Then refreshes the counts of the stories a feed still holds but the API no longer lists for it (off the front page, out of the ranking), 100 per request.
 4. Fetches the previews still missing, eight pages at a time: the first 512 KB of each, with a 10-second timeout. It retries a failed page on the next two runs, except for permanent errors such as `403` and `404`.
 5. Looks up the top comment of every listed story that has comments, at most every 2 hours per story: the first live reply in the story's `kids` from the HN API, which lists them in HN's order.
-6. Writes each feed, `state.json` and `index.html`, and deploys them.
+6. Writes each feed, `state.json`, `index.html` and `health.json`, and deploys them.
+
+`health.json` is for outside monitoring: the build time (`built`, Unix seconds) and, per feed, its item count and how many items have an image and an excerpt. When fewer than 30% of a feed's items have an image, the build also leaves a warning on the run's summary page: a sign the runner is being blocked or the page parser broke.
 
 The generated files are never committed. Losing `state.json` only means fetching the previews again.
 

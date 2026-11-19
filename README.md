@@ -7,7 +7,7 @@ Hacker News RSS feeds whose items carry the linked page's image and excerpt, nex
 
 **Subscribe:** <https://hackernews-rss.michelebologna.net/>
 
-The feeds are published on GitHub Pages and served at `hackernews-rss.michelebologna.net` by a Cloudflare Worker, so the URLs above keep working wherever the files are hosted. `https://hackernews-rss.michelebologna.net/healthz` answers 200 `{"status":"ok",…}`, or 503 when the last build is over 3 hours old or a feed's items mostly lack an image.
+The feeds are published on GitHub Pages and served at `hackernews-rss.michelebologna.net` by a Cloudflare Worker, so the URLs above keep working wherever the files are hosted. `https://hackernews-rss.michelebologna.net/health` answers 200 `{"status":"ok",…}`, or 503 when the last build is over 3 hours old or a feed's items mostly lack an image.
 
 | Feed | URL |
 | --- | --- |

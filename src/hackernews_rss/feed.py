@@ -28,8 +28,28 @@ def plural(n: int, word: str) -> str:
     return f"{n} {word}" if n == 1 else f"{n} {word}s"
 
 
-def item_html(entry: Entry) -> str:
-    """The item body: image, source, excerpt, then the article and comments links."""
+HOT = 4 * 3600  # hackernewsbot's 🔥: at most 4 hours old
+COLD = 2 * 86400  # and its ❄️: at least 2 days old
+
+
+def ago(seconds: int) -> str:
+    if seconds < 60:
+        return "just now"
+    for unit, size in (("day", 86400), ("hour", 3600), ("minute", 60)):
+        if seconds >= size:
+            return plural(seconds // size, unit) + " ago"
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
+def age_line(created: int, now: int) -> str:
+    """The story's age as on HN, with hackernewsbot's 🔥 (new) and ❄️ (old) markers."""
+    elapsed = max(0, now - created)
+    marker = "🔥 " if elapsed <= HOT else "❄️ " if elapsed >= COLD else ""
+    return marker + ago(elapsed)
+
+
+def item_html(entry: Entry, now: int) -> str:
+    """The item body: image, source, excerpt, the submitter's text, then links, counts and age."""
     story, preview = entry.story, entry.preview or Preview()
     parts = []
     if preview.image:
@@ -37,13 +57,18 @@ def item_html(entry: Entry) -> str:
     source = preview.site_name or domain(story.url)
     if source:
         parts.append(f"<p><b>{escape(source)}</b></p>")
-    text = preview.description or story.text
-    if text:
-        parts.append(f"<p>{escape(text)}</p>")
-    links = [f'<a href="{escape(story.url)}">Article</a>'] if story.url else []
-    links.append(f'<a href="{escape(story.comments_url)}">{plural(story.comments, "comment")}</a>')
-    links.append(plural(story.points, "point"))
-    parts.append("<p>" + " · ".join(links) + "</p>")
+    if preview.description:
+        parts.append(f"<p>{escape(preview.description)}</p>")
+        if story.text:  # Show HN and the like: the page and the submitter's own words
+            parts.append(f"<blockquote>{escape(story.text)}</blockquote>")
+    elif story.text:
+        parts.append(f"<p>{escape(story.text)}</p>")
+    stats = [f'<a href="{escape(story.url)}">Article</a>'] if story.url else []
+    stats.append(f'<a href="{escape(story.comments_url)}">{plural(story.comments, "comment")}</a>')
+    stats.append(plural(story.points, "point"))
+    age = age_line(story.created, now)
+    stats.append(f"{age} by {escape(story.author)}" if story.author else age)
+    parts.append("<p>" + " · ".join(stats) + "</p>")
     return "\n".join(parts)
 
 
@@ -72,7 +97,7 @@ def render_feed(feed: Feed, items: list[tuple[Entry, int]], feed_url: str, page_
         item = ET.SubElement(channel, "item")
         ET.SubElement(item, "title").text = story.title
         ET.SubElement(item, "link").text = story.url or story.comments_url
-        ET.SubElement(item, "description").text = item_html(entry)
+        ET.SubElement(item, "description").text = item_html(entry, int(now.timestamp()))
         ET.SubElement(item, "comments").text = story.comments_url
         ET.SubElement(item, "guid", {"isPermaLink": "false"}).text = story.comments_url
         ET.SubElement(item, "pubDate").text = format_datetime(utc(first_seen))

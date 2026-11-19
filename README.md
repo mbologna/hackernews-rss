@@ -18,7 +18,8 @@ Each item has:
 - the title, linking to the article (Ask HN and other text posts link to the thread);
 - the page's `og:image` (falling back to `twitter:image`), also as `media:thumbnail` for list views;
 - the site name (or the domain) and the page's description, cut to about 300 characters;
-- links to the article and the HN thread, the comment count and the points;
+- the submitter's own text, for Show HN and other posts that have some, quoted below the page's description (or in its place);
+- links to the article and the HN thread, the comment count, the points, and the story's age and author, as `150 points · 🔥 2 hours ago by pg`. As in the Telegram bot, 🔥 marks a story at most 4 hours old and ❄️ one at least 2 days old;
 - `<comments>` set to the HN thread, as in hnrss.
 
 The counts are a snapshot from when the item was built. A page that blocks bots (`403`), times out or isn't HTML gets an item without the image and excerpt.

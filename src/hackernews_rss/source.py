@@ -17,6 +17,7 @@ FIREBASE = "https://hacker-news.firebaseio.com/v0/"
 HN_ITEM = "https://news.ycombinator.com/item?id="
 MAX_HITS = 1000  # Algolia's hitsPerPage ceiling
 ID_CHUNK = 100  # story ids per Algolia request, keeping URLs short
+TEXT_LIMIT = 600  # the submitter's text, shown in full more often than not
 
 
 @dataclass(frozen=True)
@@ -28,7 +29,7 @@ class Story:
     comments: int
     created: int  # Unix time
     author: str
-    text: str  # the post's own text (Ask HN and the like), as a plain-text excerpt
+    text: str  # the submitter's own text (Ask HN, Show HN and the like), as a plain-text excerpt
 
     @property
     def comments_url(self) -> str:
@@ -106,7 +107,7 @@ def parse_hits(data: dict) -> list[Story]:
                 comments=hit.get("num_comments") or 0,
                 created=hit.get("created_at_i") or 0,
                 author=hit.get("author") or "",
-                text=excerpt(plain_text(hit.get("story_text") or "")),
+                text=excerpt(plain_text(hit.get("story_text") or ""), TEXT_LIMIT),
             )
         )
     return stories

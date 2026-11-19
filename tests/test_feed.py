@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 import pytest
 
 from hackernews_rss.config import Feed
-from hackernews_rss.feed import ATOM, DC, MEDIA, domain, item_html, last_build_date, render_feed
+from hackernews_rss.feed import ATOM, DC, MEDIA, age_line, domain, item_html, last_build_date, render_feed
 from hackernews_rss.page import describe, render_page
 from hackernews_rss.preview import Preview
 from hackernews_rss.source import Story
@@ -53,22 +53,55 @@ def test_item_fields():
     assert item.find(f"{{{MEDIA}}}content").get("medium") == "image"
 
 
+CREATED = 1_795_000_000  # story()'s post time
+HOUR = 3600
+
+
 def test_item_html_escapes_and_links():
     entry = Entry(story(), Preview("https://cdn.example.com/i.png?x=1&y=2", "An excerpt <b>raw</b>", "Example"))
-    assert item_html(entry) == (
+    assert item_html(entry, CREATED + 5 * HOUR) == (
         '<p><img src="https://cdn.example.com/i.png?x=1&amp;y=2" alt=""></p>\n'
         "<p><b>Example</b></p>\n"
         "<p>An excerpt &lt;b&gt;raw&lt;/b&gt;</p>\n"
         '<p><a href="https://www.example.com/post?a=1&amp;b=2">Article</a> · '
-        '<a href="https://news.ycombinator.com/item?id=42">37 comments</a> · 150 points</p>'
+        '<a href="https://news.ycombinator.com/item?id=42">37 comments</a> · 150 points · 5 hours ago by pg</p>'
     )
 
 
 def test_item_without_preview_shows_the_domain():
-    html = item_html(Entry(story(points=1, comments=1)))
+    html = item_html(Entry(story(points=1, comments=1, author="")), CREATED + 30)
     assert "<img" not in html
     assert "<p><b>example.com</b></p>" in html
-    assert "1 comment</a> · 1 point</p>" in html
+    assert "1 comment</a> · 1 point · 🔥 just now</p>" in html
+
+
+@pytest.mark.parametrize(
+    ("elapsed", "line"),
+    [
+        (-60, "🔥 just now"),  # a clock a little behind the post
+        (59, "🔥 just now"),
+        (60, "🔥 1 minute ago"),
+        (HOUR, "🔥 1 hour ago"),
+        (4 * HOUR, "🔥 4 hours ago"),
+        (4 * HOUR + 1, "4 hours ago"),
+        (47 * HOUR, "1 day ago"),
+        (48 * HOUR, "❄️ 2 days ago"),
+    ],
+)
+def test_age_line_uses_the_bots_markers(elapsed, line):
+    assert age_line(CREATED, CREATED + elapsed) == line
+
+
+def test_submitter_text_follows_the_page_excerpt():
+    entry = Entry(story(text="I built this <alone>"), Preview(description="The page says"))
+    html = item_html(entry, CREATED)
+    assert "<p>The page says</p>\n<blockquote>I built this &lt;alone&gt;</blockquote>" in html
+
+
+def test_submitter_text_stands_in_for_a_missing_excerpt():
+    html = item_html(Entry(story(text="Only mine"), Preview()), CREATED)
+    assert "<p>Only mine</p>" in html
+    assert "<blockquote>" not in html
 
 
 def test_ask_hn_item_links_the_thread_and_shows_its_text():

@@ -1,6 +1,6 @@
 [project]
 name = "hackernews-rss"
-version = "1.0.0"
+version = "0.0.0"
 description = "Hacker News RSS feeds whose items carry the linked page's image and excerpt, published on GitHub Pages"
 readme = "README.md"
 license = "MIT"

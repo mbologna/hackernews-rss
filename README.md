@@ -63,8 +63,6 @@ The [CI workflow](.github/workflows/ci.yml) runs the tests on every push and pul
 - every Monday at 06:00 UTC, on GitHub's own schedule;
 - on a manual run.
 
-The Monday run also cuts a [release](https://github.com/mbologna/hackernews-rss/releases) with [auto-release](https://github.com/mbologna/auto-release) when a feature, a fix or a dependency update has landed since the last one: a `vX.Y.Z` tag and a GitHub Release whose notes list the changes. The releases are a changelog only; Pages always serves `main`. The 30-minute dispatches never release.
-
 A build:
 
 1. Reads the previous run's `state.json` from the published site. It holds every listed story with its preview, and when each feed first listed it.
@@ -124,6 +122,10 @@ uv run hackernews-rss check --max-age-hours 3
 The tests never touch the network: they swap `urlopen` for a table of canned responses.
 
 Dependencies resolve only to releases at least 7 days old (`exclude-newer` in `pyproject.toml`). The script itself needs none, only the standard library.
+
+## Versioning
+
+`main` is what runs: every push to it, and every 30-minute dispatch, deploys the feeds to GitHub Pages. Releases follow SemVer as a changelog: the Monday run's [auto-release](https://github.com/mbologna/auto-release) tags `vX.Y.Z` from the [Conventional Commit](https://www.conventionalcommits.org/) types merged since the last tag (`feat` minor; `fix`, `perf`, `revert` patch; a breaking change major), or cuts a maintenance release when only dependency updates landed; the 30-minute dispatches never release. The tag builds and deploys nothing; its [GitHub Release](https://github.com/mbologna/hackernews-rss/releases) lists the changes. See the [versioning standard](https://github.com/mbologna/.github/blob/main/VERSIONING.md).
 
 ## License
 

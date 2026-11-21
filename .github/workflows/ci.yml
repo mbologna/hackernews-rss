@@ -40,7 +40,7 @@ permissions:
 jobs:
   python:
     if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only) }}
-    uses: mbologna/.github/.github/workflows/python-ci.yml@dd00ff2e6e97a3385ba395f3f60a9d4b45f1abe4 # main
+    uses: mbologna/.github/.github/workflows/python-ci.yml@52b335cb95b89c4084d3914b07fbceadc9a4e322 # main
     with:
       python_version: "3.15"
       enable_codecov: false
@@ -56,7 +56,7 @@ jobs:
     # contents: push the tag and create the Release.
     permissions:
       contents: write
-    uses: mbologna/.github/.github/workflows/auto-release.yml@dd00ff2e6e97a3385ba395f3f60a9d4b45f1abe4 # main
+    uses: mbologna/.github/.github/workflows/auto-release.yml@52b335cb95b89c4084d3914b07fbceadc9a4e322 # main
     with:
       strategy: conventional
       dispatch_tag_build: false
@@ -81,7 +81,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version: "0.13.7"
+          version: "0.13.8"
           python-version: "3.15"
 
       - name: Build
@@ -124,7 +124,7 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          version: "0.13.7"
+          version: "0.13.8"
           python-version: "3.15"
 
       - name: Fail if a published feed is missing or older than 3 hours

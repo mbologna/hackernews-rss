@@ -59,6 +59,11 @@ def test_fetch_skips_non_html(web):
     assert fetch_preview("https://example.com/paper.pdf") == Preview()
 
 
+def test_fetch_never_opens_a_non_web_link(web):
+    assert fetch_preview("file:///etc/passwd") == Preview()
+    assert web.requests == []
+
+
 def test_fetch_decodes_the_declared_charset(web):
     body = '<meta property="og:description" content="caffè">'
     web.routes["https://example.com/latin"] = lambda: FakeResponse(

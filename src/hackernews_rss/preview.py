@@ -125,6 +125,10 @@ def fetch_preview(url: str, timeout: float = 10) -> Preview:
 
     Raises on network and HTTP errors, so the caller can retry on a later run.
     """
+    # A story's link comes from whoever submitted it: never open file: or
+    # another local scheme, which would publish the runner's files.
+    if urlsplit(url).scheme not in ("http", "https"):
+        return Preview()
     req = urllib.request.Request(
         url,
         headers={
@@ -133,7 +137,7 @@ def fetch_preview(url: str, timeout: float = 10) -> Preview:
             "Accept-Language": "en",
         },
     )
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310 # http(s) only, checked above
         if r.headers.get_content_type() not in HTML_TYPES:
             return Preview()
         body = r.read(MAX_BYTES)

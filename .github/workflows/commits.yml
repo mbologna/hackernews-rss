@@ -1,8 +1,9 @@
 name: Commits
 
 # Pull requests merge with a merge commit, so every commit lands on the
-# default branch as it is: each must follow the commit rules
-# (mbologna/commitlint-config), and no fixup! commit may remain.
+# default branch as it is, and auto-release reads the subjects: each must
+# follow the commit rules (mbologna/commitlint-config), and no fixup! commit
+# may remain.
 
 "on":
   pull_request:
@@ -12,4 +13,4 @@ permissions:
 
 jobs:
   commits:
-    uses: mbologna/.github/.github/workflows/commits.yml@dd00ff2e6e97a3385ba395f3f60a9d4b45f1abe4 # main
+    uses: mbologna/.github/.github/workflows/commits.yml@52b335cb95b89c4084d3914b07fbceadc9a4e322 # main

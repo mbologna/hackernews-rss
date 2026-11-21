@@ -106,7 +106,8 @@ def build(config_path: Path, output_dir: Path, page_url: str, previous: str, now
     # The icons: the feeds' <image> and the index page's favicon.
     for asset in importlib.resources.files("hackernews_rss").joinpath("site").iterdir():
         (output_dir / asset.name).write_bytes(asset.read_bytes())
-    page = render_page([(f, feed_url(page_url, f.file)) for f in [*feeds, *conf.digests]])
+    published: list[config.Feed | config.Digest] = [*feeds, *conf.digests]
+    page = render_page([(f, feed_url(page_url, f.file)) for f in published])
     (output_dir / "index.html").write_text(page, encoding="utf-8")
 
 
@@ -117,7 +118,7 @@ def check(config_path: Path, page_url: str, max_age: dt.timedelta, now: dt.datet
         url = feed_url(page_url, file)
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
         try:
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=30) as r:  # nosec B310 # the operator's own page URL
                 built = last_build_date(r.read())
         except (urllib.error.URLError, OSError, ValueError) as e:
             print(f"{url}: {e}", file=sys.stderr)

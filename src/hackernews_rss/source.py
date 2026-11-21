@@ -6,6 +6,7 @@ import datetime as dt
 import json
 import urllib.parse
 import urllib.request
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from . import USER_AGENT
@@ -45,7 +46,7 @@ def count_filters(feed: Feed) -> list[str]:
     return filters
 
 
-def ids_query_urls(ids: list[int], tags: str, filters: list[str]) -> list[str]:
+def ids_query_urls(ids: Sequence[int | str], tags: str, filters: list[str]) -> list[str]:
     """Algolia requests for the given story ids that match tags and filters, ID_CHUNK ids each."""
     urls = []
     for start in range(0, len(ids), ID_CHUNK):
@@ -68,7 +69,7 @@ def day_query_url(start: int, end: int) -> str:
 
 def fetch_json(url: str):
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=30) as r:
+    with urllib.request.urlopen(req, timeout=30) as r:  # nosec B310 # callers build url from the https API
         return json.load(r)
 
 

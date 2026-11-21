@@ -40,7 +40,7 @@ class FakeWeb:
         self.routes[url] = raise_it
 
     def status(self, url: str, code: int):
-        self.error(url, urllib.error.HTTPError(url, code, "status", None, None))
+        self.error(url, urllib.error.HTTPError(url, code, "status", email.message.Message(), None))
 
     def urlopen(self, req, timeout=None):
         url = req.full_url if isinstance(req, urllib.request.Request) else req

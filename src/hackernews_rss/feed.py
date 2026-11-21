@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec B405 # parses only this site's own published feeds
 from email.utils import format_datetime, parsedate_to_datetime
 from html import escape
 from urllib.parse import urlsplit
@@ -188,7 +188,7 @@ def render_feed(feed: Feed, items: list[tuple[Entry, int]], feed_url: str, page_
 def last_build_date(document: bytes) -> dt.datetime:
     """A feed's lastBuildDate. Raises ValueError when the document has none."""
     try:
-        text = ET.fromstring(document).findtext("channel/lastBuildDate")
+        text = ET.fromstring(document).findtext("channel/lastBuildDate")  # nosec B314 # this site's own feed
     except ET.ParseError as e:
         raise ValueError(f"not XML: {e}") from e
     if not text:

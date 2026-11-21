@@ -80,7 +80,7 @@ After deploying, the workflow fetches every published feed and fails if one is m
 
 ## Run it yourself
 
-The script needs Python 3.12 or later and network access to the HN APIs and the linked pages, but no other packages. It reads the feed list from `feeds.toml` in the working directory, so start from a copy of this repo's file. With [uv](https://docs.astral.sh/uv/):
+The script needs Python 3.15 or later (uv, below, downloads it if the machine has none) and network access to the HN APIs and the linked pages, but no other packages. It reads the feed list from `feeds.toml` in the working directory, so start from a copy of this repo's file. With [uv](https://docs.astral.sh/uv/):
 
 ```sh
 curl -O https://raw.githubusercontent.com/mbologna/hackernews-rss/main/feeds.toml
@@ -111,6 +111,7 @@ Give cron the full path to `uvx` if its `PATH` does not include it. `hackernews-
 ```sh
 uv run pytest
 uv run ruff check . && uv run ruff format --check .
+uv run pre-commit run --all-files  # ruff, mypy, bandit and file checks; `uv run pre-commit install` runs them on each commit
 
 # Build into public/ against the live APIs, starting from no state
 uv run hackernews-rss build --output-dir public --previous-state ''

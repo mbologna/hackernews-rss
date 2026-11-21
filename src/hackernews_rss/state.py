@@ -12,6 +12,7 @@ import json
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -103,7 +104,7 @@ def load(source: str) -> State:
     try:
         if source.startswith(("http://", "https://")):
             req = urllib.request.Request(source, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with urllib.request.urlopen(req, timeout=30) as r:  # nosec B310 # http(s) only, checked above
                 raw = r.read()
         else:
             raw = Path(source).read_bytes()
@@ -151,7 +152,7 @@ def add_digest_day(state: State, digest: Digest, day: dt.date, stories: list[Sto
 
 
 def update(
-    state: State, feeds: list[Feed], results: dict[str, list[Story]], now: int, digests: list[Digest] = ()
+    state: State, feeds: list[Feed], results: dict[str, list[Story]], now: int, digests: Sequence[Digest] = ()
 ) -> None:
     """Merge this run's stories into the state, then drop what no feed or digest keeps."""
     for feed in feeds:
@@ -194,19 +195,19 @@ def update(
 
 def fetch_previews(state: State, fetch, workers: int = 8) -> tuple[int, list[tuple[str, str]]]:
     """Fetch the previews still missing. Returns how many succeeded and the (url, error) failures."""
-    todo = []
+    todo: list[tuple[Entry, str]] = []
     for entry in state.stories.values():
         if not entry.wants_preview:
             continue
         if entry.story.url:
-            todo.append(entry)
+            todo.append((entry, entry.story.url))
         else:
             entry.preview = Preview()  # nothing to fetch
     fetched, failed = 0, []
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(fetch, e.story.url): e for e in todo}
+        futures = {pool.submit(fetch, url): (e, url) for e, url in todo}
         for future in as_completed(futures):
-            entry = futures[future]
+            entry, url = futures[future]
             try:
                 entry.preview = future.result()
                 fetched += 1
@@ -217,7 +218,7 @@ def fetch_previews(state: State, fetch, workers: int = 8) -> tuple[int, list[tup
                     isinstance(e, urllib.error.HTTPError) and 400 <= e.code < 500 and e.code not in RETRY_STATUSES
                 )
                 entry.attempts = MAX_ATTEMPTS if permanent else entry.attempts + 1
-                failed.append((entry.story.url, f"{type(e).__name__}: {e}"))
+                failed.append((url, f"{type(e).__name__}: {e}"))
     return fetched, failed
 
 
